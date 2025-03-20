@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -24,12 +23,12 @@ const revenueData = [
 ];
 
 const proposalsData = [
-  { name: 'Jan', enviadas: 8, fechadas: 5 },
-  { name: 'Fev', enviadas: 6, fechadas: 4 },
-  { name: 'Mar', enviadas: 10, fechadas: 7 },
-  { name: 'Abr', enviadas: 9, fechadas: 6 },
-  { name: 'Mai', enviadas: 12, fechadas: 9 },
-  { name: 'Jun', enviadas: 8, fechadas: 6 },
+  { name: 'Jan', value: 8, fechadas: 5 },
+  { name: 'Fev', value: 6, fechadas: 4 },
+  { name: 'Mar', value: 10, fechadas: 7 },
+  { name: 'Abr', value: 9, fechadas: 6 },
+  { name: 'Mai', value: 12, fechadas: 9 },
+  { name: 'Jun', value: 8, fechadas: 6 },
 ];
 
 const recentProposals = [
@@ -103,7 +102,7 @@ const Index = () => {
                 description="Relação entre propostas enviadas e fechadas"
                 data={proposalsData} 
                 type="line" 
-                dataKeys={['enviadas', 'fechadas']}
+                dataKeys={['value', 'fechadas']}
                 colors={['#6A0572', '#0077B6']}
               />
             </div>

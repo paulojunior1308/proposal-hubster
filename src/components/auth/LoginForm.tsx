@@ -1,20 +1,33 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Eye, EyeOff, Lock } from 'lucide-react';
+import { Eye, EyeOff, Lock, Info } from 'lucide-react';
 
 export const LoginForm: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@hubster.app');
+  const [password, setPassword] = useState('password');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Auto-fill credentials text for demo purposes
+  useEffect(() => {
+    const demoTimer = setTimeout(() => {
+      toast({
+        title: 'Credenciais de demonstração',
+        description: 'Use admin@hubster.app / password para entrar',
+        variant: 'default'
+      });
+    }, 1000);
+    
+    return () => clearTimeout(demoTimer);
+  }, [toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +72,17 @@ export const LoginForm: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-100 dark:border-blue-900 text-sm flex items-start">
+          <Info className="h-5 w-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-blue-700 dark:text-blue-400 font-medium">Demo</p>
+            <p className="text-blue-600 dark:text-blue-300 opacity-90">
+              Use o login: <span className="font-medium">admin@hubster.app</span><br />
+              Senha: <span className="font-medium">password</span>
+            </p>
+          </div>
+        </div>
+        
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>

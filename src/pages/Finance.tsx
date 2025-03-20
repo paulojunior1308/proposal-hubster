@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -35,18 +34,18 @@ import {
 } from '@/components/ui/card';
 
 const revenueData = [
-  { name: 'Jan', valor: 16500, projetado: 18000 },
-  { name: 'Fev', valor: 15200, projetado: 18000 },
-  { name: 'Mar', valor: 21000, projetado: 18000 },
-  { name: 'Abr', valor: 19500, projetado: 19000 },
-  { name: 'Mai', valor: 23800, projetado: 19000 },
-  { name: 'Jun', valor: 22000, projetado: 19000 },
-  { name: 'Jul', valor: 24500, projetado: 20000 },
-  { name: 'Ago', valor: 21800, projetado: 20000 },
-  { name: 'Set', valor: 25400, projetado: 20000 },
-  { name: 'Out', valor: 28000, projetado: 22000 },
-  { name: 'Nov', valor: 0, projetado: 22000 },
-  { name: 'Dez', valor: 0, projetado: 22000 },
+  { name: 'Jan', value: 16500, projetado: 18000 },
+  { name: 'Fev', value: 15200, projetado: 18000 },
+  { name: 'Mar', value: 21000, projetado: 18000 },
+  { name: 'Abr', value: 19500, projetado: 19000 },
+  { name: 'Mai', value: 23800, projetado: 19000 },
+  { name: 'Jun', value: 22000, projetado: 19000 },
+  { name: 'Jul', value: 24500, projetado: 20000 },
+  { name: 'Ago', value: 21800, projetado: 20000 },
+  { name: 'Set', value: 25400, projetado: 20000 },
+  { name: 'Out', value: 28000, projetado: 22000 },
+  { name: 'Nov', value: 0, projetado: 22000 },
+  { name: 'Dez', value: 0, projetado: 22000 },
 ];
 
 const receivables = [
@@ -139,7 +138,7 @@ const Finance = () => {
                       description=""
                       data={revenueData} 
                       type="bar" 
-                      dataKeys={['valor', 'projetado']}
+                      dataKeys={['value', 'projetado']}
                       colors={['#6A0572', '#0077B6']}
                     />
                   </div>
