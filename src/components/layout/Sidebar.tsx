@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -16,6 +15,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface SidebarProps {
   className?: string;
@@ -25,6 +26,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ className }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   useEffect(() => {
     // Check if user prefers dark mode or has it saved in localStorage
@@ -45,6 +48,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ className }) => {
     setIsDarkMode(newMode);
     localStorage.setItem('darkMode', String(newMode));
     document.documentElement.classList.toggle('dark', newMode);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success('Logout realizado com sucesso!');
+      navigate('/login');
+    } catch (error) {
+      toast.error('Erro ao fazer logout.');
+      console.error(error);
+    }
   };
 
   const navItems = [
@@ -121,6 +135,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className }) => {
           variant="ghost"
           size="sm"
           className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent sidebar-item"
+          onClick={handleLogout}
         >
           <LogOut size={18} />
           {!collapsed && <span className="ml-3">Sair</span>}

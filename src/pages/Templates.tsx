@@ -1,6 +1,4 @@
-
 import React from 'react';
-import { Navbar } from '@/components/layout/Navbar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
 import { 
@@ -116,8 +114,6 @@ const Templates = () => {
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Navbar />
-        
         <main className="flex-1 overflow-y-auto p-6 bg-background">
           <div className="max-w-7xl mx-auto space-y-8 page-transition">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

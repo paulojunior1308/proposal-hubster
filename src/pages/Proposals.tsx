@@ -1,6 +1,4 @@
-
-import React, { useState } from 'react';
-import { Navbar } from '@/components/layout/Navbar';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,16 +9,12 @@ import {
   Edit, 
   Trash2, 
   Filter, 
-  ArrowUpDown, 
-  Clock,
-  CheckCheck,
-  XCircle
+  ArrowUpDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { 
@@ -31,41 +25,173 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ProposalForm } from '@/components/proposals/ProposalForm';
+import { DeleteProposalDialog } from '@/components/proposals/DeleteProposalDialog';
+import { proposalService, Proposal, proposalCategories, ProposalType, ProposalStatus } from '@/services/proposalService';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import * as z from 'zod';
+import { StatusDropdown } from '@/components/proposals/StatusDropdown';
+import { ProposalsTable } from '@/components/proposals/ProposalsTable';
 
-const proposals = [
-  { id: 'P-2024-056', client: 'Empresa ABC', value: 'R$ 12.500,00', date: '12/05/2024', status: 'pending', type: 'Website' },
-  { id: 'P-2024-055', client: 'StartUp XYZ', value: 'R$ 8.750,00', date: '10/05/2024', status: 'approved', type: 'E-commerce' },
-  { id: 'P-2024-054', client: 'Consultoria 123', value: 'R$ 15.200,00', date: '08/05/2024', status: 'approved', type: 'Landing Page' },
-  { id: 'P-2024-053', client: 'Tech Solutions', value: 'R$ 9.800,00', date: '05/05/2024', status: 'pending', type: 'Website' },
-  { id: 'P-2024-052', client: 'Agência Digital', value: 'R$ 6.400,00', date: '01/05/2024', status: 'rejected', type: 'E-commerce' },
-  { id: 'P-2024-051', client: 'Consultoria XPT', value: 'R$ 7.900,00', date: '29/04/2024', status: 'approved', type: 'Website' },
-  { id: 'P-2024-050', client: 'Estúdio Design', value: 'R$ 5.200,00', date: '25/04/2024', status: 'rejected', type: 'Landing Page' },
-  { id: 'P-2024-049', client: 'Loja Virtual', value: 'R$ 18.600,00', date: '22/04/2024', status: 'approved', type: 'E-commerce' },
-  { id: 'P-2024-048', client: 'Escola Online', value: 'R$ 11.300,00', date: '20/04/2024', status: 'pending', type: 'Website' },
-  { id: 'P-2024-047', client: 'Clínica Médica', value: 'R$ 8.900,00', date: '15/04/2024', status: 'approved', type: 'Website' },
-];
+const proposalSchema = z.object({
+  client: z.string().min(1, 'Nome do cliente é obrigatório'),
+  phone: z.string().min(1, 'Telefone é obrigatório'),
+  value: z.string().min(1, 'Valor é obrigatório'),
+  date: z.string().min(1, 'Data é obrigatória'),
+  category: z.enum(['Sites', 'Configuração e Manutenção', 'Infraestrutura'], {
+    required_error: 'Categoria é obrigatória',
+  }),
+  type: z.string().min(1, 'Tipo é obrigatório'),
+  description: z.string().optional(),
+});
+
+type ProposalFormData = z.infer<typeof proposalSchema>;
 
 const Proposals = () => {
+  const { user } = useAuth();
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
+
+  useEffect(() => {
+    loadProposals();
+  }, [user]);
+
+  const loadProposals = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      const data = await proposalService.getProposals(user.uid);
+      setProposals(data);
+    } catch (error) {
+      toast.error('Erro ao carregar propostas');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateProposal = async (data: ProposalFormData) => {
+    if (!user) return;
+
+    try {
+      const newProposal: Omit<Proposal, 'id' | 'createdAt' | 'updatedAt' | 'status'> = {
+        client: data.client,
+        phone: data.phone,
+        value: parseFloat(data.value),
+        date: new Date(data.date),
+        category: data.category,
+        type: data.type as ProposalType,
+        description: data.description,
+        userId: user.uid
+      };
+
+      await proposalService.createProposal(newProposal);
+      toast.success('Proposta criada com sucesso!');
+      setIsFormOpen(false);
+      loadProposals();
+    } catch (error) {
+      toast.error('Erro ao criar proposta');
+      console.error(error);
+    }
+  };
+
+  const handleUpdateProposal = async (data: ProposalFormData) => {
+    if (!selectedProposal?.id) return;
+
+    try {
+      await proposalService.updateProposal(selectedProposal.id, {
+        client: data.client,
+        value: parseFloat(data.value),
+        date: new Date(data.date),
+        category: data.category,
+        type: data.type as ProposalType,
+        description: data.description
+      });
+      toast.success('Proposta atualizada com sucesso!');
+      setIsFormOpen(false);
+      setSelectedProposal(null);
+      loadProposals();
+    } catch (error) {
+      toast.error('Erro ao atualizar proposta');
+      console.error(error);
+    }
+  };
+
+  const handleDeleteProposal = async () => {
+    if (!selectedProposal?.id) return;
+
+    try {
+      await proposalService.deleteProposal(selectedProposal.id);
+      toast.success('Proposta excluída com sucesso!');
+      setIsDeleteDialogOpen(false);
+      setSelectedProposal(null);
+      loadProposals();
+    } catch (error) {
+      toast.error('Erro ao excluir proposta');
+      console.error(error);
+    }
+  };
+
+  const handleStatusChange = async (proposalId: string, newStatus: ProposalStatus) => {
+    try {
+      await proposalService.updateProposal(proposalId, { status: newStatus });
+      toast.success('Status da proposta atualizado com sucesso!');
+      loadProposals();
+    } catch (error) {
+      toast.error('Erro ao atualizar status da proposta');
+      console.error(error);
+    }
+  };
+
+  const handleDownloadProposal = (proposal: Proposal) => {
+    try {
+      proposalService.generateProposalPDF(proposal);
+      toast.success('Proposta baixada com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao baixar proposta');
+      console.error(error);
+    }
+  };
 
   const filteredProposals = proposals.filter(proposal => {
-    const matchesSearch = proposal.client.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          proposal.id.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || proposal.status === statusFilter;
+    const matchesSearch = proposal.client.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === 'all' || proposal.category === categoryFilter;
     const matchesType = typeFilter === 'all' || proposal.type === typeFilter;
-    
-    return matchesSearch && matchesStatus && matchesType;
+    const matchesStatus = statusFilter === 'all' || proposal.status === statusFilter;
+    return matchesSearch && matchesCategory && matchesType && matchesStatus;
   });
+
+  const handleEditClick = (proposal: Proposal) => {
+    setSelectedProposal(proposal);
+    setIsFormOpen(true);
+  };
+
+  const handleDeleteClick = (proposal: Proposal) => {
+    setSelectedProposal(proposal);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleNewProposalClick = () => {
+    setSelectedProposal(null);
+    setIsFormOpen(true);
+  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Navbar />
-        
         <main className="flex-1 overflow-y-auto p-6 bg-background">
           <div className="max-w-7xl mx-auto space-y-8 page-transition">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -73,18 +199,23 @@ const Proposals = () => {
                 <h1 className="text-3xl font-bold">Propostas</h1>
                 <p className="text-muted-foreground">Gerencie suas propostas comerciais</p>
               </div>
-              <Button className="bg-hubster-secondary hover:bg-hubster-secondary/90">
+              <Button 
+                className="bg-hubster-secondary hover:bg-hubster-secondary/90"
+                onClick={handleNewProposalClick}
+              >
                 <Plus className="mr-2 h-4 w-4" /> Nova Proposta
               </Button>
             </div>
             
-            <Tabs defaultValue="all" className="w-full">
+            <Tabs defaultValue="all" className="w-full space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <TabsList className="bg-muted/50">
                   <TabsTrigger value="all">Todas</TabsTrigger>
                   <TabsTrigger value="pending">Pendentes</TabsTrigger>
-                  <TabsTrigger value="approved">Aprovadas</TabsTrigger>
-                  <TabsTrigger value="rejected">Rejeitadas</TabsTrigger>
+                  <TabsTrigger value="waiting_client">Aguardando Cliente</TabsTrigger>
+                  <TabsTrigger value="accepted">Aceitas</TabsTrigger>
+                  <TabsTrigger value="declined">Recusadas</TabsTrigger>
+                  <TabsTrigger value="paid">Pagas</TabsTrigger>
                 </TabsList>
                 
                 <div className="flex flex-1 sm:max-w-md gap-2">
@@ -106,19 +237,21 @@ const Proposals = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
                       <div className="p-2 space-y-2">
-                        <p className="text-sm font-medium">Filtrar por Tipo</p>
+                        <p className="text-sm font-medium">Filtrar por Categoria</p>
                         <Select
-                          value={typeFilter}
-                          onValueChange={setTypeFilter}
+                          value={categoryFilter}
+                          onValueChange={setCategoryFilter}
                         >
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Todos os tipos" />
+                            <SelectValue placeholder="Todas as categorias" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todos os tipos</SelectItem>
-                            <SelectItem value="Website">Website</SelectItem>
-                            <SelectItem value="E-commerce">E-commerce</SelectItem>
-                            <SelectItem value="Landing Page">Landing Page</SelectItem>
+                            <SelectItem value="all">Todas as categorias</SelectItem>
+                            {Object.keys(proposalCategories).map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -126,112 +259,81 @@ const Proposals = () => {
                   </DropdownMenu>
                 </div>
               </div>
-              
-              <TabsContent value="all" className="mt-0">
-                <div className="bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-muted/50">
-                          <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">ID</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            <div className="flex items-center">
-                              Cliente
-                              <ArrowUpDown className="ml-1 h-3 w-3" />
-                            </div>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Tipo</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            <div className="flex items-center">
-                              Data
-                              <ArrowUpDown className="ml-1 h-3 w-3" />
-                            </div>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {filteredProposals.map((proposal) => (
-                          <tr key={proposal.id} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{proposal.id}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">{proposal.client}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">{proposal.type}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">{proposal.value}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                              <div className="flex items-center">
-                                <Clock className="mr-1 h-3 w-3" />
-                                {proposal.date}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={cn(
-                                "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
-                                proposal.status === 'approved' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-                                proposal.status === 'pending' && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-                                proposal.status === 'rejected' && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                              )}>
-                                {proposal.status === 'approved' ? (
-                                  <><CheckCheck className="h-3 w-3 mr-1" /> Aprovada</>
-                                ) : proposal.status === 'pending' ? (
-                                  <><Clock className="h-3 w-3 mr-1" /> Pendente</>
-                                ) : (
-                                  <><XCircle className="h-3 w-3 mr-1" /> Rejeitada</>
-                                )}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <div className="flex items-center justify-end space-x-2">
-                                <Button variant="ghost" size="icon">
-                                  <FileDown className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {filteredProposals.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                      <p className="text-lg font-medium">Nenhuma proposta encontrada</p>
-                      <p className="text-muted-foreground mt-1">Tente ajustar seus filtros ou criar uma nova proposta</p>
-                    </div>
-                  )}
-                </div>
+
+              <TabsContent value="all" className="space-y-4">
+                <ProposalsTable
+                  proposals={filteredProposals}
+                  onEdit={handleEditClick}
+                  onDelete={handleDeleteClick}
+                />
               </TabsContent>
-              <TabsContent value="pending" className="mt-0">
-                {/* Similar content but filtered for pending */}
-                <div className="bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm">
-                  {/* Table would go here with filtered content */}
-                  <p className="p-8 text-center text-muted-foreground">Visualização de propostas pendentes</p>
-                </div>
+              <TabsContent value="pending" className="space-y-4">
+                <ProposalsTable
+                  proposals={filteredProposals.filter(p => p.status === 'pending')}
+                  onEdit={handleEditClick}
+                  onDelete={handleDeleteClick}
+                />
               </TabsContent>
-              <TabsContent value="approved" className="mt-0">
-                {/* Similar content but filtered for approved */}
-                <div className="bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm">
-                  {/* Table would go here with filtered content */}
-                  <p className="p-8 text-center text-muted-foreground">Visualização de propostas aprovadas</p>
-                </div>
+              <TabsContent value="waiting_client" className="space-y-4">
+                <ProposalsTable
+                  proposals={filteredProposals.filter(p => p.status === 'waiting_client')}
+                  onEdit={handleEditClick}
+                  onDelete={handleDeleteClick}
+                />
               </TabsContent>
-              <TabsContent value="rejected" className="mt-0">
-                {/* Similar content but filtered for rejected */}
-                <div className="bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm">
-                  {/* Table would go here with filtered content */}
-                  <p className="p-8 text-center text-muted-foreground">Visualização de propostas rejeitadas</p>
-                </div>
+              <TabsContent value="accepted" className="space-y-4">
+                <ProposalsTable
+                  proposals={filteredProposals.filter(p => p.status === 'accepted')}
+                  onEdit={handleEditClick}
+                  onDelete={handleDeleteClick}
+                />
+              </TabsContent>
+              <TabsContent value="declined" className="space-y-4">
+                <ProposalsTable
+                  proposals={filteredProposals.filter(p => p.status === 'declined')}
+                  onEdit={handleEditClick}
+                  onDelete={handleDeleteClick}
+                />
+              </TabsContent>
+              <TabsContent value="paid" className="space-y-4">
+                <ProposalsTable
+                  proposals={filteredProposals.filter(p => p.status === 'paid')}
+                  onEdit={handleEditClick}
+                  onDelete={handleDeleteClick}
+                />
               </TabsContent>
             </Tabs>
           </div>
         </main>
       </div>
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedProposal ? 'Editar Proposta' : 'Nova Proposta'}
+            </DialogTitle>
+          </DialogHeader>
+          <ProposalForm
+            proposal={selectedProposal || undefined}
+            onSubmit={selectedProposal ? handleUpdateProposal : handleCreateProposal}
+            onCancel={() => {
+              setIsFormOpen(false);
+              setSelectedProposal(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <DeleteProposalDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false);
+          setSelectedProposal(null);
+        }}
+        onConfirm={handleDeleteProposal}
+        proposalClient={selectedProposal?.client || ''}
+      />
     </div>
   );
 };

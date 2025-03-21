@@ -1,167 +1,273 @@
-import React from 'react';
-import { Navbar } from '@/components/layout/Navbar';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { Chart } from '@/components/dashboard/Chart';
-import { Button } from '@/components/ui/button';
-import { FileText, ChevronRight, FileDown, Clock } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { dashboardService, DashboardData } from '@/services/dashboardService';
+import { toast } from 'sonner';
+import { 
+  FileText, 
+  Clock, 
+  CheckCircle, 
+  DollarSign, 
+  AlertCircle,
+  ArrowUpDown,
+  Calendar
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const revenueData = [
-  { name: 'Jan', value: 12000 },
-  { name: 'Fev', value: 9000 },
-  { name: 'Mar', value: 15000 },
-  { name: 'Abr', value: 10000 },
-  { name: 'Mai', value: 18000 },
-  { name: 'Jun', value: 14000 },
-  { name: 'Jul', value: 20000 },
-  { name: 'Ago', value: 22000 },
-  { name: 'Set', value: 17000 },
-  { name: 'Out', value: 19000 },
-  { name: 'Nov', value: 21000 },
-  { name: 'Dez', value: 25000 },
-];
-
-const proposalsData = [
-  { name: 'Jan', value: 8, fechadas: 5 },
-  { name: 'Fev', value: 6, fechadas: 4 },
-  { name: 'Mar', value: 10, fechadas: 7 },
-  { name: 'Abr', value: 9, fechadas: 6 },
-  { name: 'Mai', value: 12, fechadas: 9 },
-  { name: 'Jun', value: 8, fechadas: 6 },
-];
-
-const recentProposals = [
-  { id: 'P-2024-056', client: 'Empresa ABC', value: 'R$ 12.500,00', date: '12/05/2024', status: 'pending' },
-  { id: 'P-2024-055', client: 'StartUp XYZ', value: 'R$ 8.750,00', date: '10/05/2024', status: 'approved' },
-  { id: 'P-2024-054', client: 'Consultoria 123', value: 'R$ 15.200,00', date: '08/05/2024', status: 'approved' },
-  { id: 'P-2024-053', client: 'Tech Solutions', value: 'R$ 9.800,00', date: '05/05/2024', status: 'pending' },
-  { id: 'P-2024-052', client: 'Agência Digital', value: 'R$ 6.400,00', date: '01/05/2024', status: 'rejected' },
-];
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const Index = () => {
+  const { user } = useAuth();
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadDashboardData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await dashboardService.getDashboardData(user!.uid);
+      setDashboardData(data);
+    } catch (error) {
+      toast.error('Erro ao carregar dados do dashboard');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadDashboardData();
+    }
+  }, [user, loadDashboardData]);
+
+  if (!dashboardData) {
+    return (
+      <div className="flex h-screen w-full overflow-hidden">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-hubster-primary border-t-transparent"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Navbar />
-        
         <main className="flex-1 overflow-y-auto p-6 bg-background">
           <div className="max-w-7xl mx-auto space-y-8 page-transition">
-            <div className="flex flex-col mb-8">
+            <div>
               <h1 className="text-3xl font-bold">Dashboard</h1>
               <p className="text-muted-foreground">Visão geral do seu negócio</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <MetricCard 
-                title="Faturamento Mensal" 
-                value="R$ 22.500,00" 
-                icon="money"
-                variant="primary"
-                changeValue={12}
-                changeText="vs. mês anterior"
-              />
-              <MetricCard 
-                title="Propostas Enviadas" 
-                value="8" 
+                title="Total de Propostas" 
+                value={dashboardData.totalProposals.toString()}
                 icon="file"
-                variant="default"
-                changeValue={-3}
-                changeText="vs. mês anterior"
+                variant="primary"
+                changeValue={0}
+                changeText="total"
               />
               <MetricCard 
-                title="Taxa de Conversão" 
-                value="68%" 
-                icon="chart"
+                title="Propostas Ativas" 
+                value={dashboardData.activeProposals.toString()}
+                icon="file"
                 variant="success"
-                changeValue={4}
-                changeText="vs. mês anterior"
+                changeValue={0}
+                changeText="ativas"
               />
               <MetricCard 
-                title="Ticket Médio" 
-                value="R$ 12.800,00" 
+                title="Faturamento Mensal" 
+                value={new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL'
+                }).format(dashboardData.monthlyRevenue)}
                 icon="money"
                 variant="warning"
                 changeValue={0}
-                changeText="sem alteração"
+                changeText="este mês"
               />
+              <MetricCard 
+                title="Recebimentos Pendentes" 
+                value={dashboardData.pendingReceivables.toString()}
+                icon="file"
+                variant="danger"
+                changeValue={0}
+                changeText="pendentes"
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              <Card className="lg:col-span-3">
+                <CardHeader className="pb-2">
+                  <CardTitle>Faturamento Mensal</CardTitle>
+                  <CardDescription>Valores realizados por mês</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <Chart 
+                      title=""
+                      description=""
+                      data={dashboardData.monthlyData.map(item => ({
+                        name: item.month,
+                        value: item.value
+                      }))}
+                      type="bar" 
+                      dataKeys={['value']}
+                      colors={['#6A0572']}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="lg:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle>Próximos Recebimentos</CardTitle>
+                  <CardDescription>Últimos 5 recebimentos pendentes</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {dashboardData.recentReceivables.map((receivable) => (
+                      <div key={receivable.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                        <div>
+                          <p className="font-medium">{receivable.client}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            }).format(receivable.value)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">
+                            {format(receivable.dueDate, 'dd/MM/yyyy', { locale: ptBR })}
+                          </p>
+                          <span className={cn(
+                            "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
+                            receivable.status === 'pending' && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+                            receivable.status === 'overdue' && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                          )}>
+                            {receivable.status === 'pending' ? (
+                              <><Clock className="h-3 w-3 mr-1" /> Pendente</>
+                            ) : (
+                              <><AlertCircle className="h-3 w-3 mr-1" /> Atrasado</>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Chart 
-                title="Faturamento Anual" 
-                description="Visualização do faturamento mensal durante o ano"
-                data={revenueData} 
-                type="bar" 
-                dataKeys={['value']}
-                colors={['#0077B6']}
-              />
-              <Chart 
-                title="Propostas" 
-                description="Relação entre propostas enviadas e fechadas"
-                data={proposalsData} 
-                type="line" 
-                dataKeys={['value', 'fechadas']}
-                colors={['#6A0572', '#0077B6']}
-              />
-            </div>
-            
-            <div className="bg-white dark:bg-card rounded-xl overflow-hidden shadow-sm">
-              <div className="px-6 py-4 flex justify-between items-center border-b border-border">
-                <h2 className="font-semibold">Propostas Recentes</h2>
-                <Button variant="ghost" size="sm" asChild>
-                  <a href="/proposals">
-                    Ver Todas <ChevronRight className="ml-1 h-4 w-4" />
-                  </a>
-                </Button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-muted/50">
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Cliente</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Data</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {recentProposals.map((proposal) => (
-                      <tr key={proposal.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{proposal.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{proposal.client}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{proposal.value}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                          <div className="flex items-center">
-                            <Clock className="mr-1 h-3 w-3" />
-                            {proposal.date}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle>Últimas Propostas</CardTitle>
+                  <CardDescription>Propostas recentes do sistema</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {dashboardData.recentProposals.map((proposal) => (
+                      <div key={proposal.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                        <div>
+                          <p className="font-medium">{proposal.client}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            }).format(proposal.value)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">
+                            {format(proposal.date, 'dd/MM/yyyy', { locale: ptBR })}
+                          </p>
                           <span className={cn(
-                            "inline-flex rounded-full px-2 text-xs font-semibold leading-5",
-                            proposal.status === 'approved' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+                            "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
+                            proposal.status === 'accepted' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
                             proposal.status === 'pending' && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-                            proposal.status === 'rejected' && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                            proposal.status === 'declined' && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
                           )}>
-                            {proposal.status === 'approved' ? 'Aprovada' : 
-                             proposal.status === 'pending' ? 'Pendente' : 'Rejeitada'}
+                            {proposal.status === 'accepted' ? (
+                              <><CheckCircle className="h-3 w-3 mr-1" /> Aprovada</>
+                            ) : proposal.status === 'pending' ? (
+                              <><Clock className="h-3 w-3 mr-1" /> Pendente</>
+                            ) : (
+                              <><AlertCircle className="h-3 w-3 mr-1" /> Recusada</>
+                            )}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <Button variant="ghost" size="sm">
-                            <FileDown className="h-4 w-4 mr-1" />
-                            PDF
-                          </Button>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle>Resumo Financeiro</CardTitle>
+                  <CardDescription>Métricas financeiras do período</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center">
+                        <DollarSign className="h-5 w-5 text-green-500 mr-3" />
+                        <div>
+                          <p className="font-medium">Faturamento Total</p>
+                          <p className="text-sm text-muted-foreground">Valor total de propostas aprovadas</p>
+                        </div>
+                      </div>
+                      <p className="text-xl font-bold">
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL'
+                        }).format(dashboardData.totalRevenue)}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center">
+                        <Clock className="h-5 w-5 text-yellow-500 mr-3" />
+                        <div>
+                          <p className="font-medium">Recebimentos Pendentes</p>
+                          <p className="text-sm text-muted-foreground">Valores a receber</p>
+                        </div>
+                      </div>
+                      <p className="text-xl font-bold text-yellow-500">
+                        {dashboardData.pendingReceivables}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center">
+                        <AlertCircle className="h-5 w-5 text-red-500 mr-3" />
+                        <div>
+                          <p className="font-medium">Recebimentos Atrasados</p>
+                          <p className="text-sm text-muted-foreground">Valores em atraso</p>
+                        </div>
+                      </div>
+                      <p className="text-xl font-bold text-red-500">
+                        {dashboardData.overdueReceivables}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </main>

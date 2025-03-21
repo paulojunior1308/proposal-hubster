@@ -1,9 +1,11 @@
-import React from 'react';
-import { Navbar } from '@/components/layout/Navbar';
+import React, { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { Chart } from '@/components/dashboard/Chart';
+import { useAuth } from '@/contexts/AuthContext';
+import { FinanceData, Receivable, financeService } from '@/services/financeService';
+import { toast } from 'sonner';
 import { 
   Download, 
   Calendar, 
@@ -32,39 +34,88 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-
-const revenueData = [
-  { name: 'Jan', value: 16500, projetado: 18000 },
-  { name: 'Fev', value: 15200, projetado: 18000 },
-  { name: 'Mar', value: 21000, projetado: 18000 },
-  { name: 'Abr', value: 19500, projetado: 19000 },
-  { name: 'Mai', value: 23800, projetado: 19000 },
-  { name: 'Jun', value: 22000, projetado: 19000 },
-  { name: 'Jul', value: 24500, projetado: 20000 },
-  { name: 'Ago', value: 21800, projetado: 20000 },
-  { name: 'Set', value: 25400, projetado: 20000 },
-  { name: 'Out', value: 28000, projetado: 22000 },
-  { name: 'Nov', value: 0, projetado: 22000 },
-  { name: 'Dez', value: 0, projetado: 22000 },
-];
-
-const receivables = [
-  { id: 'FAT-2024-056', client: 'Empresa ABC', value: 'R$ 12.500,00', dueDate: '15/05/2024', status: 'pending' },
-  { id: 'FAT-2024-055', client: 'StartUp XYZ', value: 'R$ 8.750,00', dueDate: '10/05/2024', status: 'paid' },
-  { id: 'FAT-2024-054', client: 'Consultoria 123', value: 'R$ 15.200,00', dueDate: '05/05/2024', status: 'paid' },
-  { id: 'FAT-2024-053', client: 'Tech Solutions', value: 'R$ 9.800,00', dueDate: '30/04/2024', status: 'overdue' },
-  { id: 'FAT-2024-052', client: 'Agência Digital', value: 'R$ 6.400,00', dueDate: '25/04/2024', status: 'paid' },
-];
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const Finance = () => {
-  const [year, setYear] = React.useState('2024');
+  const { user } = useAuth();
+  const [year, setYear] = useState(new Date().getFullYear().toString());
+  const [financeData, setFinanceData] = useState<FinanceData[]>([]);
+  const [receivables, setReceivables] = useState<Receivable[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedReceivable, setSelectedReceivable] = useState<Receivable | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user, year]);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [financeResult, receivablesResult] = await Promise.all([
+        financeService.getFinanceData(user!.uid, year),
+        financeService.getReceivables(user!.uid)
+      ]);
+      setFinanceData(financeResult);
+      setReceivables(receivablesResult);
+    } catch (error) {
+      toast.error('Erro ao carregar dados financeiros');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateReceivableStatus = async (id: string, status: 'paid' | 'pending' | 'overdue') => {
+    try {
+      await financeService.updateReceivable(id, { status });
+      toast.success('Status atualizado com sucesso!');
+      loadData();
+    } catch (error) {
+      toast.error('Erro ao atualizar status');
+      console.error(error);
+    }
+  };
+
+  const handleDeleteReceivable = async () => {
+    if (!selectedReceivable?.id) return;
+
+    try {
+      await financeService.deleteReceivable(selectedReceivable.id);
+      toast.success('Recebimento excluído com sucesso!');
+      setIsDeleteDialogOpen(false);
+      setSelectedReceivable(null);
+      loadData();
+    } catch (error) {
+      toast.error('Erro ao excluir recebimento');
+      console.error(error);
+    }
+  };
+
+  const metrics = financeService.calculateMetrics(financeData);
+  const chartData = financeData.map(data => ({
+    name: data.month,
+    value: data.value,
+    projetado: data.projectedValue
+  }));
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Navbar />
-        
         <main className="flex-1 overflow-y-auto p-6 bg-background">
           <div className="max-w-7xl mx-auto space-y-8 page-transition">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -81,6 +132,7 @@ const Finance = () => {
                     <SelectItem value="2022">2022</SelectItem>
                     <SelectItem value="2023">2023</SelectItem>
                     <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button variant="outline" className="flex items-center gap-2">
@@ -93,34 +145,46 @@ const Finance = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <MetricCard 
                 title="Faturamento Anual" 
-                value="R$ 198.450,00" 
+                value={new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL'
+                }).format(metrics.total)}
                 icon="money"
                 variant="primary"
-                changeValue={12}
-                changeText="vs. ano anterior"
+                changeValue={Math.round(metrics.growth)}
+                changeText="vs. projetado"
               />
               <MetricCard 
                 title="Faturamento Mensal" 
-                value="R$ 28.000,00" 
+                value={new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL'
+                }).format(metrics.currentMonth)}
                 icon="chart"
                 variant="success"
-                changeValue={15}
+                changeValue={Math.round(metrics.monthlyGrowth)}
                 changeText="vs. mês anterior"
               />
               <MetricCard 
                 title="Média Mensal" 
-                value="R$ 20.854,00" 
+                value={new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL'
+                }).format(metrics.average)}
                 icon="calendar"
                 variant="default"
-                changeValue={8}
-                changeText="vs. ano anterior"
+                changeValue={0}
+                changeText="média do período"
               />
               <MetricCard 
                 title="Previsão Anual" 
-                value="R$ 235.000,00" 
+                value={new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL'
+                }).format(metrics.projected)}
                 icon="money"
                 variant="warning"
-                changeValue={18}
+                changeValue={Math.round((metrics.projected / metrics.total - 1) * 100)}
                 changeText="crescimento"
               />
             </div>
@@ -136,7 +200,7 @@ const Finance = () => {
                     <Chart 
                       title=""
                       description=""
-                      data={revenueData} 
+                      data={chartData}
                       type="bar" 
                       dataKeys={['value', 'projetado']}
                       colors={['#6A0572', '#0077B6']}
@@ -163,9 +227,14 @@ const Finance = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold">R$ 12.800</p>
+                        <p className="text-xl font-bold">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL'
+                          }).format(metrics.average)}
+                        </p>
                         <div className="flex items-center text-xs text-green-500">
-                          <TrendingUp className="h-3 w-3 mr-1" /> +8% esse ano
+                          <TrendingUp className="h-3 w-3 mr-1" /> Média atual
                         </div>
                       </div>
                     </div>
@@ -176,14 +245,14 @@ const Finance = () => {
                           <BadgePercent className="h-5 w-5 text-hubster-secondary" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium">Taxa de Conversão</p>
-                          <p className="text-xs text-muted-foreground">Propostas aceitas</p>
+                          <p className="text-sm font-medium">Crescimento</p>
+                          <p className="text-xs text-muted-foreground">Variação mensal</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold">68%</p>
+                        <p className="text-xl font-bold">{Math.round(metrics.monthlyGrowth)}%</p>
                         <div className="flex items-center text-xs text-green-500">
-                          <TrendingUp className="h-3 w-3 mr-1" /> +5% esse ano
+                          <TrendingUp className="h-3 w-3 mr-1" /> vs. mês anterior
                         </div>
                       </div>
                     </div>
@@ -194,14 +263,19 @@ const Finance = () => {
                           <Calendar className="h-5 w-5 text-amber-500" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium">Projeção Q4</p>
-                          <p className="text-xs text-muted-foreground">Outubro-Dezembro</p>
+                          <p className="text-sm font-medium">Mês Atual</p>
+                          <p className="text-xs text-muted-foreground">Faturamento</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold">R$ 85.000</p>
+                        <p className="text-xl font-bold">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL'
+                          }).format(metrics.currentMonth)}
+                        </p>
                         <div className="flex items-center text-xs text-green-500">
-                          <TrendingUp className="h-3 w-3 mr-1" /> +15% vs Q3
+                          <TrendingUp className="h-3 w-3 mr-1" /> Mês corrente
                         </div>
                       </div>
                     </div>
@@ -212,14 +286,19 @@ const Finance = () => {
                           <DollarSign className="h-5 w-5 text-green-500" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium">Previsão 2025</p>
-                          <p className="text-xs text-muted-foreground">Crescimento projetado</p>
+                          <p className="text-sm font-medium">Projeção</p>
+                          <p className="text-xs text-muted-foreground">Próximo mês</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold">R$ 280.000</p>
+                        <p className="text-xl font-bold">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL'
+                          }).format(metrics.projected / 12)} {/* Média mensal projetada */}
+                        </p>
                         <div className="flex items-center text-xs text-green-500">
-                          <TrendingUp className="h-3 w-3 mr-1" /> +20% anual
+                          <TrendingUp className="h-3 w-3 mr-1" /> Estimativa
                         </div>
                       </div>
                     </div>
@@ -258,41 +337,67 @@ const Finance = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {receivables.map((item) => (
-                      <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{item.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{item.client}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{item.value}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                          <div className="flex items-center">
-                            <Calendar className="mr-1 h-3 w-3" />
-                            {item.dueDate}
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-4 text-center">
+                          <div className="flex items-center justify-center">
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-hubster-primary border-t-transparent"></div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={cn(
-                            "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
-                            item.status === 'paid' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-                            item.status === 'pending' && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-                            item.status === 'overdue' && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                          )}>
-                            {item.status === 'paid' ? (
-                              <><CheckCircle className="h-3 w-3 mr-1" /> Pago</>
-                            ) : item.status === 'pending' ? (
-                              <><Clock className="h-3 w-3 mr-1" /> Pendente</>
-                            ) : (
-                              <><AlertCircle className="h-3 w-3 mr-1" /> Atrasado</>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <Button variant="outline" size="sm" className="text-hubster-secondary border-hubster-secondary hover:bg-hubster-secondary/10">
-                            <DollarSign className="h-3 w-3 mr-1" />
-                            Registrar Pgto
-                          </Button>
+                      </tr>
+                    ) : receivables.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-4 text-center text-muted-foreground">
+                          Nenhum recebimento encontrado
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      receivables.map((item) => (
+                        <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{item.id?.slice(-6)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">{item.client}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            }).format(item.value)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                            <div className="flex items-center">
+                              <Calendar className="mr-1 h-3 w-3" />
+                              {format(item.dueDate, 'dd/MM/yyyy', { locale: ptBR })}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={cn(
+                              "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
+                              item.status === 'paid' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+                              item.status === 'pending' && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+                              item.status === 'overdue' && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                            )}>
+                              {item.status === 'paid' ? (
+                                <><CheckCircle className="h-3 w-3 mr-1" /> Pago</>
+                              ) : item.status === 'pending' ? (
+                                <><Clock className="h-3 w-3 mr-1" /> Pendente</>
+                              ) : (
+                                <><AlertCircle className="h-3 w-3 mr-1" /> Atrasado</>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-hubster-secondary border-hubster-secondary hover:bg-hubster-secondary/10"
+                              onClick={() => handleUpdateReceivableStatus(item.id!, 'paid')}
+                            >
+                              <DollarSign className="h-3 w-3 mr-1" />
+                              Registrar Pgto
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -300,6 +405,28 @@ const Finance = () => {
           </div>
         </main>
       </div>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Recebimento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este recebimento? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setIsDeleteDialogOpen(false);
+              setSelectedReceivable(null);
+            }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteReceivable}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
