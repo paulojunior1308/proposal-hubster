@@ -17,11 +17,13 @@ export interface Proposal {
   category: ProposalCategory;
   type: ProposalType;
   description: string;
-  status: ProposalStatus;
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'paid' | 'payment_failed';
   userId: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  paymentId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  paymentId?: string;
+  paymentDate?: Date;
+  paymentStatus?: string;
   linkExpiresAt?: Timestamp;
   linkStatus?: 'pending' | 'paid' | 'expired';
 }
