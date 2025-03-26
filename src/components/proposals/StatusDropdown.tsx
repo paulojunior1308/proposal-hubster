@@ -1,4 +1,3 @@
-import React from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -8,7 +7,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ProposalStatus } from '@/services/proposalService';
+import { ProposalStatus } from '@/types/proposal';
 
 interface StatusDropdownProps {
   currentStatus: ProposalStatus;

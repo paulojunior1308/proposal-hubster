@@ -10,7 +10,6 @@ import {
   Filter,
   Palette,
   FileText,
-  Code,
   LayoutTemplate
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';

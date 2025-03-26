@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Table,
   TableBody,
@@ -9,10 +8,10 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Proposal, proposalService } from '@/services/proposalService';
+import { Proposal, ProposalStatus } from '@/types/proposal';
+import { proposalService } from '@/services/proposalService';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Edit, Trash2, Send, CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react';
+import { Edit, Trash2, Send, CheckCircle, XCircle, Clock, DollarSign, LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ProposalsTableProps {
@@ -21,20 +20,20 @@ interface ProposalsTableProps {
   onDelete: (proposal: Proposal) => void;
 }
 
-type BadgeVariant = 'default' | 'destructive' | 'outline' | 'secondary';
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
-type StatusConfig = {
-  [K in Proposal['status']]: {
-    label: string;
-    variant: BadgeVariant;
-    icon: React.ElementType;
-  }
-};
+interface StatusConfigItem {
+  label: string;
+  variant: BadgeVariant;
+  icon: LucideIcon;
+}
+
+type StatusConfig = Record<ProposalStatus, StatusConfigItem>;
 
 export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTableProps) => {
   const handleSendProposal = async (proposal: Proposal) => {
     try {
-      const url = await proposalService.sendProposalToClient(proposal);
+      await proposalService.sendProposalToClient(proposal);
       toast.success('Proposta enviada com sucesso!');
     } catch (error) {
       console.error(error);
@@ -48,7 +47,8 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
       waiting_client: { label: 'Aguardando Cliente', variant: 'outline', icon: Send },
       accepted: { label: 'Aceita', variant: 'secondary', icon: CheckCircle },
       declined: { label: 'Declinada', variant: 'destructive', icon: XCircle },
-      paid: { label: 'Paga', variant: 'secondary', icon: DollarSign }
+      paid: { label: 'Paga', variant: 'secondary', icon: DollarSign },
+      payment_failed: { label: 'Pagamento Falhou', variant: 'destructive', icon: XCircle }
     };
 
     const config = statusConfig[status];
@@ -83,7 +83,7 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
               <TableCell>{proposal.category}</TableCell>
               <TableCell>{proposal.type}</TableCell>
               <TableCell>
-                {format(proposal.date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                {format(proposal.date, "dd 'de' MMMM 'de' yyyy")}
               </TableCell>
               <TableCell>
                 {new Intl.NumberFormat('pt-BR', {

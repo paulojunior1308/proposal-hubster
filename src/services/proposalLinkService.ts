@@ -1,6 +1,6 @@
 import { db } from '@/config/firebase';
 import { collection, addDoc, updateDoc, doc, getDoc, Timestamp } from 'firebase/firestore';
-import { Proposal } from './proposalService';
+import { Proposal } from '@/types/proposal';
 
 export interface ProposalLink {
   id?: string;

@@ -1,29 +1,38 @@
 import { Proposal } from '@/types/proposal';
 
-class CheckoutService {
+export class CheckoutService {
   private readonly MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY;
+
+  constructor() {
+    if (!this.MP_PUBLIC_KEY) {
+      console.error('MP_PUBLIC_KEY não definida');
+    }
+  }
 
   async createPreference(proposal: Proposal) {
     try {
-      console.log('Criando preferência de pagamento para proposta:', proposal.id);
+      console.log('Criando preferência de pagamento para proposta:', {
+        id: proposal.id,
+        client: proposal.client,
+        value: proposal.value
+      });
       
-      const response = await fetch('http://localhost:3000/api/create-preference', {
+      const response = await fetch('/api/create-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: proposal.id,
-          title: `Proposta ${proposal.id}`,
-          unit_price: proposal.value,
-          quantity: 1,
-          currency_id: 'BRL',
-          description: proposal.description || 'Proposta de serviço'
+          proposalId: proposal.id,
+          title: `Proposta - ${proposal.client}`,
+          price: proposal.value,
+          description: proposal.description || 'Pagamento de proposta'
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Erro ao criar preferência: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Erro ao criar preferência: ${errorText}`);
       }
 
       const data = await response.json();
@@ -37,43 +46,24 @@ class CheckoutService {
 
   async handlePayment(proposal: Proposal) {
     try {
-      console.log('Iniciando processo de pagamento para proposta:', proposal.id);
+      const { preferenceId } = await this.createPreference(proposal);
       
-      // Criar preferência de pagamento
-      const preference = await this.createPreference(proposal);
-      
-      // Inicializar o Mercado Pago com a chave pública
-      const mp = new window.MercadoPago(this.MP_PUBLIC_KEY);
-      
+      // Inicializar o Mercado Pago
+      const mp = new window.MercadoPago(this.MP_PUBLIC_KEY, {
+        locale: 'pt-BR'
+      });
+
       // Criar o botão de pagamento
       const bricksBuilder = mp.bricks();
-      const renderCheckout = async (bricksBuilder: any) => {
-        const settings = {
+      await bricksBuilder.create(
+        'wallet',
+        'checkout-button',
+        {
           initialization: {
-            amount: proposal.value,
-            preferenceId: preference.id
-          },
-          callbacks: {
-            onReady: () => {
-              console.log('Checkout pronto');
-            },
-            onSubmit: (data: any) => {
-              console.log('Formulário enviado:', data);
-            },
-            onError: (error: any) => {
-              console.error('Erro no checkout:', error);
-            },
-          },
-        };
-
-        window.checkoutBrickController = await bricksBuilder.create(
-          'wallet',
-          'checkout-btn',
-          settings
-        );
-      };
-
-      await renderCheckout(bricksBuilder);
+            preferenceId
+          }
+        }
+      );
     } catch (error) {
       console.error('Erro ao processar pagamento:', error);
       throw error;

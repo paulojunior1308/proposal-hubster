@@ -1,4 +1,3 @@
-import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -13,18 +12,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Proposal, ProposalCategory, proposalCategories } from '@/services/proposalService';
+import { Proposal, ProposalCategory } from '@/types/proposal';
+import { proposalCategories } from '@/types/proposal';
 
 const proposalSchema = z.object({
   client: z.string().min(1, 'Nome do cliente é obrigatório'),
+  phone: z.string().optional(),
   value: z.string().min(1, 'Valor é obrigatório'),
   date: z.string().min(1, 'Data é obrigatória'),
-  category: z.enum(['Sites', 'Configuração e Manutenção', 'Infraestrutura'], {
-    required_error: 'Categoria é obrigatória',
-  }),
+  category: z.enum(['Sites', 'Configuração e Manutenção', 'Infraestrutura']),
   type: z.string().min(1, 'Tipo é obrigatório'),
-  description: z.string().optional(),
-  phone: z.string().optional(),
+  description: z.string().optional()
 });
 
 type ProposalFormData = z.infer<typeof proposalSchema>;
@@ -58,11 +56,6 @@ export function ProposalForm({ proposal, onSubmit, onCancel }: ProposalFormProps
   });
 
   const selectedCategory = watch('category');
-
-  const handleCategoryChange = (category: ProposalCategory) => {
-    setValue('category', category);
-    setValue('type', ''); // Limpa o tipo quando a categoria muda
-  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -121,8 +114,11 @@ export function ProposalForm({ proposal, onSubmit, onCancel }: ProposalFormProps
         <div className="space-y-2">
           <Label htmlFor="category">Categoria</Label>
           <Select
-            onValueChange={(value) => setValue('category', value as ProposalCategory)}
-            defaultValue={proposal?.category || ''}
+            value={selectedCategory}
+            onValueChange={(value: ProposalCategory) => {
+              setValue('category', value);
+              setValue('type', ''); // Limpa o tipo quando a categoria muda
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Selecione a categoria" />

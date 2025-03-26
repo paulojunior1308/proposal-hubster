@@ -10,45 +10,59 @@ app.use(cors());
 app.use(express.json());
 
 console.log('Token do Mercado Pago:', process.env.MP_ACCESS_TOKEN);
+console.log('MP_ACCESS_TOKEN exists:', !!process.env.MP_ACCESS_TOKEN);
 
 const mercadopago = new MercadoPagoConfig({ 
   accessToken: process.env.MP_ACCESS_TOKEN!
 });
 
 // Rota para criar preferência de pagamento
-app.post('/api/create-preference', async (req, res) => {
+app.post('/api/create-payment', async (req, res) => {
   try {
     console.log('Recebida requisição para criar preferência:', req.body);
+    const { proposalId, title, price, description } = req.body;
+
+    if (!proposalId || !title || !price) {
+      return res.status(400).json({
+        error: 'Dados inválidos',
+        details: 'proposalId, title e price são obrigatórios'
+      });
+    }
+
     const preference = new Preference(mercadopago);
     
     const preferenceData = {
       items: [
         {
-          id: req.body.id,
-          title: req.body.title,
-          unit_price: req.body.unit_price,
-          quantity: req.body.quantity,
-          currency_id: req.body.currency_id,
-          description: req.body.description
+          id: proposalId,
+          title,
+          unit_price: Number(price),
+          quantity: 1,
+          description: description || 'Sem descrição',
+          currency_id: 'BRL'
         }
       ],
       back_urls: {
-        success: `${req.headers.origin}/proposals`,
-        failure: `${req.headers.origin}/proposals`,
-        pending: `${req.headers.origin}/proposals`
+        success: `${process.env.VITE_APP_URL}/proposta/${proposalId}/success`,
+        failure: `${process.env.VITE_APP_URL}/proposta/${proposalId}/failure`,
+        pending: `${process.env.VITE_APP_URL}/proposta/${proposalId}/pending`
       },
       auto_return: 'approved',
-      external_reference: req.body.id,
-      notification_url: `${req.headers.origin}/api/webhooks/mercadopago`
+      external_reference: proposalId,
+      notification_url: `${process.env.VITE_APP_URL}/api/webhooks/mercadopago`
     };
 
     console.log('Dados da preferência:', preferenceData);
     const response = await preference.create({ body: preferenceData });
     console.log('Resposta do Mercado Pago:', response);
-    res.json(response);
+    
+    return res.status(200).json({
+      preferenceId: response.id,
+      initPoint: response.init_point
+    });
   } catch (error) {
     console.error('Erro ao criar preferência:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Erro ao criar preferência',
       details: error instanceof Error ? error.message : 'Erro desconhecido'
     });

@@ -1,11 +1,53 @@
 import { useState } from 'react';
-import { Proposal } from '@/services/proposalService';
+import { Proposal } from '@/types/proposal';
 import { Button } from '@/components/ui/button';
 import { checkoutService } from '@/services/checkoutService';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
-declare const MercadoPago: any;
+// Interfaces para tipagem do Mercado Pago
+interface MercadoPagoPreferenceOptions {
+  initialization: {
+    preferenceId: string;
+  };
+  customization?: {
+    visual?: {
+      hidePaymentButton?: boolean;
+      backgroundColor?: string;
+    };
+  };
+}
+
+interface MercadoPagoBricksOptions {
+  initialization: {
+    preferenceId: string;
+  };
+}
+
+interface MercadoPagoBricks {
+  create: (
+    type: 'wallet' | 'payment' | 'cardPayment',
+    elementId: string,
+    options: MercadoPagoBricksOptions
+  ) => Promise<void>;
+}
+
+interface MercadoPagoInstance {
+  checkout: {
+    Preference: {
+      createPreference(options: MercadoPagoPreferenceOptions): Promise<void>;
+    };
+  };
+  bricks: () => MercadoPagoBricks;
+}
+
+declare global {
+  interface Window {
+    MercadoPago: {
+      new (publicKey: string, options?: { locale: string }): MercadoPagoInstance;
+    };
+  }
+}
 
 interface ProposalDetailsProps {
   proposal: Proposal;
@@ -19,60 +61,36 @@ export const ProposalDetails = ({ proposal }: ProposalDetailsProps) => {
       setIsProcessing(true);
       const preference = await checkoutService.createPreference(proposal);
       
-      // Inicializa o Mercado Pago
-      const mp = new MercadoPago(process.env.NEXT_PUBLIC_MP_PUBLIC_KEY!, {
+      const mp = new window.MercadoPago(process.env.NEXT_PUBLIC_MP_PUBLIC_KEY!, {
         locale: 'pt-BR'
-      });
+      }) as MercadoPagoInstance;
 
-      // Cria o botão de checkout
-      mp.checkout({
-        preference: {
-          id: preference.id
-        },
-        render: {
-          container: '.checkout-button',
-          label: 'Pagar com Mercado Pago',
+      const bricksBuilder = mp.bricks();
+      await bricksBuilder.create(
+        'wallet',
+        'checkout-button',
+        {
+          initialization: {
+            preferenceId: preference.id
+          }
         }
-      });
+      );
     } catch (error) {
       console.error('Erro ao processar pagamento:', error);
-      toast.error('Erro ao processar pagamento. Tente novamente.');
+      toast.error('Erro ao processar pagamento');
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Cliente</h3>
-          <p className="text-lg font-semibold">{proposal.client}</p>
-        </div>
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Valor</h3>
-          <p className="text-lg font-semibold">
-            {new Intl.NumberFormat('pt-BR', {
-              style: 'currency',
-              currency: 'BRL'
-            }).format(proposal.value)}
-          </p>
-        </div>
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Data</h3>
-          <p className="text-lg font-semibold">
-            {new Date(proposal.date).toLocaleDateString('pt-BR')}
-          </p>
-        </div>
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
-          <p className="text-lg font-semibold capitalize">{proposal.status}</p>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-muted-foreground">Descrição</h3>
-        <p className="text-sm">{proposal.description}</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-2">
+        <h3 className="text-lg font-semibold">Detalhes da Proposta</h3>
+        <p>Cliente: {proposal.client}</p>
+        <p>Valor: R$ {proposal.value.toFixed(2)}</p>
+        <p>Status: {proposal.status}</p>
+        {proposal.description && <p>Descrição: {proposal.description}</p>}
       </div>
 
       {proposal.status === 'accepted' && (
@@ -88,10 +106,10 @@ export const ProposalDetails = ({ proposal }: ProposalDetailsProps) => {
                 Processando...
               </>
             ) : (
-              'Pagar Proposta'
+              'Realizar Pagamento'
             )}
           </Button>
-          <div className="checkout-button"></div>
+          <div id="checkout-button" className="w-full" />
         </div>
       )}
     </div>

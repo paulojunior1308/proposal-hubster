@@ -3,11 +3,10 @@ import {
   query, 
   where, 
   getDocs, 
-  orderBy,
-  Timestamp
+  orderBy
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { Proposal } from './proposalService';
+import { Proposal } from '@/types/proposal';
 import { Receivable } from './financeService';
 
 export interface DashboardData {
@@ -21,8 +20,8 @@ export interface DashboardData {
   recentProposals: Proposal[];
   recentReceivables: Receivable[];
   monthlyData: {
-    month: string;
-    value: number;
+    name: string;
+    total: number;
   }[];
 }
 
@@ -81,8 +80,8 @@ export const dashboardService = {
 
       // Dados mensais para o gráfico
       const monthlyData = monthNames.map((month, index) => ({
-        month,
-        value: proposals
+        name: month,
+        total: proposals
           .filter(p => p.status === 'accepted' && p.date.getMonth() === index)
           .reduce((acc, curr) => acc + curr.value, 0)
       }));

@@ -1,17 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   Plus, 
   Search, 
-  FileDown, 
-  Edit, 
-  Trash2, 
   Filter, 
-  ArrowUpDown
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -28,18 +23,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ProposalForm } from '@/components/proposals/ProposalForm';
 import { DeleteProposalDialog } from '@/components/proposals/DeleteProposalDialog';
-import { proposalService, Proposal, proposalCategories, ProposalType, ProposalStatus } from '@/services/proposalService';
+import { proposalService } from '@/services/proposalService';
+import { Proposal, ProposalType, ProposalCategory } from '@/types/proposal';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import * as z from 'zod';
-import { StatusDropdown } from '@/components/proposals/StatusDropdown';
 import { ProposalsTable } from '@/components/proposals/ProposalsTable';
 
 const proposalSchema = z.object({
   client: z.string().min(1, 'Nome do cliente é obrigatório'),
-  phone: z.string().min(1, 'Telefone é obrigatório'),
+  phone: z.string().optional(),
   value: z.string().min(1, 'Valor é obrigatório'),
   date: z.string().min(1, 'Data é obrigatória'),
   category: z.enum(['Sites', 'Configuração e Manutenção', 'Infraestrutura'], {
@@ -51,49 +44,55 @@ const proposalSchema = z.object({
 
 type ProposalFormData = z.infer<typeof proposalSchema>;
 
+export const proposalCategories = {
+  'Sites': ['Landing Page', 'Ecommerce', 'Sistema Web'],
+  'Configuração e Manutenção': ['Computador', 'Notebook', 'Impressora'],
+  'Infraestrutura': ['Configuração de equipamentos de rede', 'Passagem de Cabos']
+} as const;
+
 const Proposals = () => {
   const { user } = useAuth();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [isLoading, setIsLoading] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
+  const [isLoadingProposals, setIsLoadingProposals] = useState(true);
 
-  useEffect(() => {
-    loadProposals();
-  }, [user]);
-
-  const loadProposals = async () => {
+  const loadProposals = useCallback(async () => {
     if (!user) return;
     
     try {
-      setIsLoading(true);
+      setIsLoadingProposals(true);
       const data = await proposalService.getProposals(user.uid);
       setProposals(data);
     } catch (error) {
       toast.error('Erro ao carregar propostas');
       console.error(error);
     } finally {
-      setIsLoading(false);
+      setIsLoadingProposals(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadProposals();
+    }
+  }, [user, loadProposals]);
 
   const handleCreateProposal = async (data: ProposalFormData) => {
     if (!user) return;
 
     try {
-      const newProposal: Omit<Proposal, 'id' | 'createdAt' | 'updatedAt' | 'status'> = {
-        client: data.client,
-        phone: data.phone,
-        value: parseFloat(data.value),
+      const newProposal: Omit<Proposal, 'id' | 'status' | 'createdAt' | 'updatedAt'> = {
+        phone: data.phone || '',
+        value: Number(data.value),
         date: new Date(data.date),
-        category: data.category,
+        category: data.category as ProposalCategory,
         type: data.type as ProposalType,
-        description: data.description,
+        description: data.description || '',
+        client: data.client,
         userId: user.uid
       };
 
@@ -101,9 +100,10 @@ const Proposals = () => {
       toast.success('Proposta criada com sucesso!');
       setIsFormOpen(false);
       loadProposals();
-    } catch (error) {
-      toast.error('Erro ao criar proposta');
-      console.error(error);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao criar proposta';
+      toast.error(errorMessage);
+      console.error(err);
     }
   };
 
@@ -115,7 +115,7 @@ const Proposals = () => {
         client: data.client,
         value: parseFloat(data.value),
         date: new Date(data.date),
-        category: data.category,
+        category: data.category as ProposalCategory,
         type: data.type as ProposalType,
         description: data.description
       });
@@ -144,33 +144,10 @@ const Proposals = () => {
     }
   };
 
-  const handleStatusChange = async (proposalId: string, newStatus: ProposalStatus) => {
-    try {
-      await proposalService.updateProposal(proposalId, { status: newStatus });
-      toast.success('Status da proposta atualizado com sucesso!');
-      loadProposals();
-    } catch (error) {
-      toast.error('Erro ao atualizar status da proposta');
-      console.error(error);
-    }
-  };
-
-  const handleDownloadProposal = (proposal: Proposal) => {
-    try {
-      proposalService.generateProposalPDF(proposal);
-      toast.success('Proposta baixada com sucesso!');
-    } catch (error) {
-      toast.error('Erro ao baixar proposta');
-      console.error(error);
-    }
-  };
-
   const filteredProposals = proposals.filter(proposal => {
     const matchesSearch = proposal.client.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || proposal.category === categoryFilter;
-    const matchesType = typeFilter === 'all' || proposal.type === typeFilter;
-    const matchesStatus = statusFilter === 'all' || proposal.status === statusFilter;
-    return matchesSearch && matchesCategory && matchesType && matchesStatus;
+    return matchesSearch && matchesCategory;
   });
 
   const handleEditClick = (proposal: Proposal) => {
@@ -261,11 +238,17 @@ const Proposals = () => {
               </div>
 
               <TabsContent value="all" className="space-y-4">
-                <ProposalsTable
-                  proposals={filteredProposals}
-                  onEdit={handleEditClick}
-                  onDelete={handleDeleteClick}
-                />
+                {isLoadingProposals ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                  </div>
+                ) : (
+                  <ProposalsTable
+                    proposals={filteredProposals}
+                    onEdit={handleEditClick}
+                    onDelete={handleDeleteClick}
+                  />
+                )}
               </TabsContent>
               <TabsContent value="pending" className="space-y-4">
                 <ProposalsTable

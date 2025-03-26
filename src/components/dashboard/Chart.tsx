@@ -1,13 +1,12 @@
-
 import React from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
-interface ChartData {
+export interface ChartData {
   name: string;
   value: number;
-  [key: string]: any;
+  projetado: number;
 }
 
 interface ChartProps {
@@ -18,7 +17,6 @@ interface ChartProps {
   type: 'line' | 'bar';
   dataKeys: string[];
   colors?: string[];
-  height?: number;
 }
 
 export const Chart: React.FC<ChartProps> = ({
@@ -29,7 +27,6 @@ export const Chart: React.FC<ChartProps> = ({
   type = 'line',
   dataKeys,
   colors = ['#0077B6', '#6A0572', '#48BB78', '#F6AD55'],
-  height = 300,
 }) => {
   const renderChart = () => {
     if (type === 'line') {

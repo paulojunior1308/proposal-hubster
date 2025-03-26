@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
 import { MetricCard } from '@/components/dashboard/MetricCard';
@@ -45,7 +45,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 const Finance = () => {
   const { user } = useAuth();
@@ -365,7 +364,7 @@ const Finance = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                             <div className="flex items-center">
                               <Calendar className="mr-1 h-3 w-3" />
-                              {format(item.dueDate, 'dd/MM/yyyy', { locale: ptBR })}
+                              {format(item.dueDate, 'dd/MM/yyyy')}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">

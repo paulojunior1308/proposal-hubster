@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { Chart } from '@/components/dashboard/Chart';
@@ -6,13 +6,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { dashboardService, DashboardData } from '@/services/dashboardService';
 import { toast } from 'sonner';
 import { 
-  FileText, 
-  Clock, 
-  CheckCircle, 
-  DollarSign, 
+  CheckCircle,
+  Clock,
+  XCircle,
   AlertCircle,
-  ArrowUpDown,
-  Calendar
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -23,7 +21,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ProposalStatus } from '@/types/proposal';
+import { ChartData } from '@/types/finance';
 
 const Index = () => {
   const { user } = useAuth();
@@ -44,10 +43,36 @@ const Index = () => {
   }, [user]);
 
   useEffect(() => {
-    if (user) {
+    if (isLoading) {
       loadDashboardData();
     }
-  }, [user, loadDashboardData]);
+  }, [isLoading, loadDashboardData]);
+
+  const getStatusIcon = (status: ProposalStatus) => {
+    switch (status) {
+      case 'accepted':
+        return <CheckCircle className="h-3 w-3 mr-1" />;
+      case 'pending':
+        return <Clock className="h-3 w-3 mr-1" />;
+      case 'declined':
+        return <XCircle className="h-3 w-3 mr-1" />;
+      default:
+        return <AlertCircle className="h-3 w-3 mr-1" />;
+    }
+  };
+
+  const getStatusLabel = (status: ProposalStatus) => {
+    switch (status) {
+      case 'accepted':
+        return 'Aceita';
+      case 'pending':
+        return 'Pendente';
+      case 'declined':
+        return 'Recusada';
+      default:
+        return status;
+    }
+  };
 
   if (!dashboardData) {
     return (
@@ -59,6 +84,12 @@ const Index = () => {
       </div>
     );
   }
+
+  const chartData: ChartData[] = dashboardData.monthlyData.map(item => ({
+    name: item.name,
+    value: item.total,
+    projetado: item.total * 1.1 // Exemplo de projeção
+  }));
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -120,10 +151,7 @@ const Index = () => {
                     <Chart 
                       title=""
                       description=""
-                      data={dashboardData.monthlyData.map(item => ({
-                        name: item.month,
-                        value: item.value
-                      }))}
+                      data={chartData}
                       type="bar" 
                       dataKeys={['value']}
                       colors={['#6A0572']}
@@ -152,7 +180,7 @@ const Index = () => {
                         </div>
                         <div className="text-right">
                           <p className="text-sm text-muted-foreground">
-                            {format(receivable.dueDate, 'dd/MM/yyyy', { locale: ptBR })}
+                            {format(receivable.dueDate, 'dd/MM/yyyy')}
                           </p>
                           <span className={cn(
                             "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
@@ -194,21 +222,18 @@ const Index = () => {
                         </div>
                         <div className="text-right">
                           <p className="text-sm text-muted-foreground">
-                            {format(proposal.date, 'dd/MM/yyyy', { locale: ptBR })}
+                            {format(new Date(proposal.date), 'dd/MM/yyyy')}
                           </p>
                           <span className={cn(
                             "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
-                            proposal.status === 'accepted' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-                            proposal.status === 'pending' && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-                            proposal.status === 'declined' && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                            {
+                              "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400": proposal.status === 'accepted',
+                              "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400": proposal.status === 'pending',
+                              "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400": proposal.status === 'declined'
+                            }
                           )}>
-                            {proposal.status === 'accepted' ? (
-                              <><CheckCircle className="h-3 w-3 mr-1" /> Aprovada</>
-                            ) : proposal.status === 'pending' ? (
-                              <><Clock className="h-3 w-3 mr-1" /> Pendente</>
-                            ) : (
-                              <><AlertCircle className="h-3 w-3 mr-1" /> Recusada</>
-                            )}
+                            {getStatusIcon(proposal.status)}
+                            {getStatusLabel(proposal.status)}
                           </span>
                         </div>
                       </div>

@@ -1,27 +1,23 @@
-import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { proposalLinkService, ProposalLink } from '@/services/proposalLinkService';
-import { proposalService, Proposal } from '@/services/proposalService';
+import { proposalService } from '@/services/proposalService';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { initMercadoPago, Wallet } from '@mercadopago/sdk-react';
+import { Proposal } from '@/types/proposal';
+import { useEffect, useState } from 'react';
+import { Label } from '@/components/ui/label';
 
 // Inicializar Mercado Pago com a chave pública
-initMercadoPago(process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY!);
+initMercadoPago(process.env.NEXT_PUBLIC_MP_PUBLIC_KEY!);
 
 const PropostaPage = () => {
   const router = useRouter();
   const { id } = router.query;
   const [loading, setLoading] = useState(true);
-  const [proposalLink, setProposalLink] = useState<ProposalLink | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
-  const [isExpired, setIsExpired] = useState(false);
   const [preferenceId, setPreferenceId] = useState<string>('');
 
   useEffect(() => {
@@ -30,29 +26,27 @@ const PropostaPage = () => {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (proposal) {
+      console.log('Status atual da proposta:', proposal.status);
+    }
+  }, [proposal]);
+
   const loadProposal = async () => {
     try {
       setLoading(true);
-      const link = await proposalLinkService.getProposalLink(id as string);
+      const proposalData = await proposalService.getProposal(id as string);
       
-      if (!link) {
+      if (!proposalData) {
         toast.error('Proposta não encontrada');
         return;
       }
 
-      setProposalLink(link);
-      
-      // Verificar se o link expirou
-      setIsExpired(new Date() > link.expiresAt);
-
-      // Buscar dados da proposta
-      const proposalData = await proposalService.getProposal(link.proposalId);
       setProposal(proposalData);
-
-      // Se a proposta já foi aceita, criar preferência de pagamento
-      if (link.status === 'accepted' && !link.paymentId) {
-        const prefId = await proposalLinkService.createPaymentPreference(proposalData, link.id!);
-        setPreferenceId(prefId);
+      
+      if (proposalData.status === 'accepted' && !proposalData.paymentId) {
+        const result = await proposalService.createPaymentPreference(proposalData);
+        setPreferenceId(result.preferenceId);
       }
     } catch (error) {
       console.error(error);
@@ -62,35 +56,24 @@ const PropostaPage = () => {
     }
   };
 
-  const handleAccept = async () => {
-    if (!proposalLink?.id || !proposal) return;
+  const handleResponse = async (accept: boolean) => {
+    if (!proposal?.id) return;
 
     try {
-      // Atualizar status para aceito
-      await proposalLinkService.updateLinkStatus(proposalLink.id, 'accepted');
+      await proposalService.handleProposalResponse(proposal.id, accept);
       
-      // Criar preferência de pagamento
-      const prefId = await proposalLinkService.createPaymentPreference(proposal, proposalLink.id);
-      setPreferenceId(prefId);
-
-      toast.success('Proposta aceita com sucesso!');
+      if (accept) {
+        toast.success('Proposta aceita! Redirecionando para pagamento...');
+        const { preferenceId } = await proposalService.createPaymentPreference(proposal);
+        setPreferenceId(preferenceId);
+      } else {
+        toast.info('Proposta recusada');
+      }
+      
       loadProposal();
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao aceitar proposta');
-    }
-  };
-
-  const handleDecline = async () => {
-    if (!proposalLink?.id) return;
-
-    try {
-      await proposalLinkService.updateLinkStatus(proposalLink.id, 'declined');
-      toast.success('Proposta declinada');
-      loadProposal();
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao declinar proposta');
+      toast.error('Erro ao processar resposta');
     }
   };
 
@@ -102,7 +85,7 @@ const PropostaPage = () => {
     );
   }
 
-  if (!proposalLink || !proposal) {
+  if (!proposal) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="w-full max-w-lg mx-4">
@@ -121,97 +104,95 @@ const PropostaPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background py-12 px-4">
-      <Card className="w-full max-w-4xl mx-auto">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Proposta para {proposal.client}</CardTitle>
-              <CardDescription>
-                Criada em {format(proposal.date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              </CardDescription>
+    <div className="container mx-auto p-4">
+      {loading ? (
+        <div className="flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      ) : proposal ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Proposta para {proposal.client}</CardTitle>
+            <CardDescription>
+              Criada em {format(proposal.createdAt.toDate(), 'dd/MM/yyyy')}
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <div className="grid gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Valor</Label>
+                  <p className="text-lg font-semibold">
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL'
+                    }).format(proposal.value)}
+                  </p>
+                </div>
+                <div>
+                  <Label>Categoria</Label>
+                  <p className="text-lg">{proposal.category}</p>
+                </div>
+                <div>
+                  <Label>Tipo</Label>
+                  <p className="text-lg">{proposal.type}</p>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <p className="text-lg capitalize">{proposal.status}</p>
+                </div>
+              </div>
+              
+              <div>
+                <Label>Descrição</Label>
+                <p className="text-gray-600">{proposal.description}</p>
+              </div>
             </div>
-            <Badge variant={
-              proposalLink.status === 'accepted' ? 'default' :
-              proposalLink.status === 'declined' ? 'destructive' :
-              proposalLink.status === 'paid' ? 'default' :
-              isExpired ? 'destructive' : 'default'
-            }>
-              {proposalLink.status === 'accepted' && <CheckCircle className="h-3 w-3 mr-1" />}
-              {proposalLink.status === 'declined' && <XCircle className="h-3 w-3 mr-1" />}
-              {proposalLink.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-              {proposalLink.status === 'accepted' ? 'Aceita' :
-               proposalLink.status === 'declined' ? 'Declinada' :
-               proposalLink.status === 'paid' ? 'Paga' :
-               isExpired ? 'Expirada' : 'Pendente'}
-            </Badge>
-          </div>
-        </CardHeader>
+          </CardContent>
 
-        <CardContent className="space-y-6">
-          <div>
-            <h3 className="font-semibold mb-2">Descrição</h3>
-            <p className="text-muted-foreground">{proposal.description}</p>
-          </div>
+          <CardFooter className="flex flex-col gap-4">
+            {proposal.status === 'waiting_client' && (
+              <div className="flex gap-4 w-full">
+                <Button
+                  onClick={() => handleResponse(false)}
+                  variant="destructive"
+                  className="flex-1"
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Recusar Proposta
+                </Button>
+                <Button
+                  onClick={() => handleResponse(true)}
+                  variant="default"
+                  className="flex-1"
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Aceitar Proposta
+                </Button>
+              </div>
+            )}
+            
+            {proposal.status === 'accepted' && !proposal.paymentId && preferenceId && (
+              <div className="w-full">
+                <Wallet initialization={{ preferenceId }} />
+              </div>
+            )}
 
-          <div>
-            <h3 className="font-semibold mb-2">Detalhes</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Categoria</p>
-                <p className="font-medium">{proposal.category}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Tipo</p>
-                <p className="font-medium">{proposal.type}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Valor</p>
-                <p className="font-medium">
-                  {new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL'
-                  }).format(proposal.value)}
+            {proposal.status === 'declined' && (
+              <div className="bg-destructive/10 p-4 rounded-lg w-full">
+                <p className="text-sm text-destructive text-center font-medium">
+                  Esta proposta foi recusada
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Validade</p>
-                <p className="font-medium">
-                  {format(proposalLink.expiresAt, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-
-        <CardFooter className="flex flex-col gap-4">
-          {proposalLink.status === 'pending' && !isExpired && (
-            <div className="flex gap-4 justify-end w-full">
-              <Button
-                variant="outline"
-                onClick={handleDecline}
-                className="w-32"
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Declinar
-              </Button>
-              <Button
-                onClick={handleAccept}
-                className="w-32"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Aceitar
-              </Button>
-            </div>
-          )}
-          
-          {proposalLink.status === 'accepted' && !proposalLink.paymentId && preferenceId && (
-            <div className="w-full flex justify-center">
-              <Wallet initialization={{ preferenceId }} />
-            </div>
-          )}
-        </CardFooter>
-      </Card>
+            )}
+          </CardFooter>
+        </Card>
+      ) : (
+        <div className="text-center">
+          <h2 className="text-xl font-semibold">Proposta não encontrada</h2>
+        </div>
+      )}
     </div>
   );
 };

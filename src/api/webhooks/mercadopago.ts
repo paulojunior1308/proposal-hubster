@@ -1,4 +1,19 @@
+import { ProposalStatus } from '@/types/proposal';
 import { proposalService } from '@/services/proposalService';
+
+interface PaymentWebhookData {
+  type: string;
+  data: {
+    id: string;
+    status: string;
+    external_reference: string;
+  };
+}
+
+export interface PaymentResponse {
+  status: string;
+  external_reference: string;
+}
 
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
@@ -6,7 +21,7 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const body = await req.json();
+    const body = await req.json() as PaymentWebhookData;
     
     // Verifica se é uma notificação de pagamento
     if (body.type === 'payment') {
@@ -15,11 +30,11 @@ export default async function handler(req: Request) {
       // Atualiza o status da proposta baseado no status do pagamento
       if (payment.status === 'approved') {
         await proposalService.updateProposal(payment.external_reference, {
-          status: 'paid'
+          status: 'paid' as ProposalStatus
         });
       } else if (payment.status === 'rejected') {
         await proposalService.updateProposal(payment.external_reference, {
-          status: 'payment_failed'
+          status: 'payment_failed' as ProposalStatus
         });
       }
     }

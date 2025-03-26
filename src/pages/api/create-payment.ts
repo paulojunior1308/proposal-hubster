@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { proposalId, linkId, title, price, description } = req.body;
+    const { proposalId, title, price, description } = req.body;
 
     // Criar preferência de pagamento
     const preference = new Preference(client);
@@ -28,13 +28,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       ],
       back_urls: {
-        success: `${process.env.NEXT_PUBLIC_APP_URL}/proposta/${linkId}/success`,
-        failure: `${process.env.NEXT_PUBLIC_APP_URL}/proposta/${linkId}/failure`,
-        pending: `${process.env.NEXT_PUBLIC_APP_URL}/proposta/${linkId}/pending`
+        success: `${process.env.NEXT_PUBLIC_APP_URL}/proposta/${proposalId}/success`,
+        failure: `${process.env.NEXT_PUBLIC_APP_URL}/proposta/${proposalId}/failure`,
+        pending: `${process.env.NEXT_PUBLIC_APP_URL}/proposta/${proposalId}/pending`
       },
       auto_return: 'approved',
-      external_reference: `${proposalId}-${linkId}`,
-      notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago/webhook`
+      external_reference: proposalId,
+      notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`
     };
 
     const response = await preference.create({ body: preferenceData });

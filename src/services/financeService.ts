@@ -11,12 +11,27 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { Proposal } from './proposalService';
+import { Proposal } from '@/types/proposal';
 
-export interface FinanceData {
+interface MonthlyData {
   month: string;
   value: number;
   projectedValue: number;
+}
+
+export interface FinanceData {
+  id: string;
+  userId: string;
+  year: string;
+  month: string;
+  value: number;
+  projectedValue: number;
+  revenue: number;
+  expenses: number;
+  profit: number;
+  growth: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Receivable {
@@ -72,7 +87,7 @@ export const financeService = {
       })) as Proposal[];
 
       // Inicializar array com todos os meses
-      const monthlyData = monthNames.map((month, index) => ({
+      const monthlyData: MonthlyData[] = monthNames.map((month) => ({
         month,
         value: 0,
         projectedValue: 0
@@ -94,7 +109,20 @@ export const financeService = {
         monthlyData[i].projectedValue = average * 1.1; // 10% de crescimento projetado
       }
 
-      return monthlyData;
+      return monthlyData.map((data, index) => ({
+        id: `${year}-${index}`,
+        userId,
+        year,
+        month: data.month,
+        value: data.value,
+        projectedValue: data.projectedValue,
+        revenue: data.value,
+        expenses: 0,
+        profit: data.value,
+        growth: 0,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }));
     } catch (error) {
       console.error('Erro ao buscar dados financeiros:', error);
       throw error;
@@ -219,5 +247,25 @@ export const financeService = {
         ? ((financeData[currentMonth].value / financeData[previousMonth].value) - 1) * 100
         : 0
     };
+  },
+
+  // Atualizar o tipo de retorno para MonthlyData[]
+  async getMonthlyData(): Promise<MonthlyData[]> {
+    try {
+      const monthlyData = monthNames.map((month) => ({
+        month,
+        value: 0,
+        projectedValue: 0
+      }));
+
+      return monthlyData.map((item: MonthlyData) => ({
+        month: item.month,
+        value: item.value,
+        projectedValue: item.projectedValue
+      }));
+    } catch (error) {
+      console.error('Erro ao buscar dados mensais:', error);
+      throw error;
+    }
   }
 }; 

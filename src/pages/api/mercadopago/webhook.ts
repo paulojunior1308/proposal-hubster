@@ -7,13 +7,23 @@ const client = new MercadoPagoConfig({
   accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN!
 });
 
+// Adicionar tipagem para o body
+interface WebhookBody {
+  type: string;
+  data: {
+    id: string;
+    status: string;
+  };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
-    const { type, data } = req.body;
+    // Usar a tipagem
+    const { type, data } = req.body as WebhookBody;
 
     // Verificar se é uma notificação de pagamento
     if (type === 'payment') {
@@ -25,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { external_reference, status } = paymentData;
 
       // Extrair IDs da referência externa
-      const [proposalId, linkId] = external_reference.split('-');
+      const [_, linkId] = (external_reference || '').split('-');
 
       // Atualizar status do link da proposta
       if (status === 'approved') {

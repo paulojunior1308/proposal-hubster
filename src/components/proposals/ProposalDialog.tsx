@@ -7,12 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { CalendarIcon, Send } from 'lucide-react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Proposal, proposalService } from '@/services/proposalService';
+import { Proposal } from '@/types/proposal';
+import { proposalService } from '@/services/proposalService';
 
 interface ProposalDialogProps {
   isOpen: boolean;
@@ -26,8 +26,8 @@ export const ProposalDialog = ({ isOpen, onClose, onSubmit, proposal }: Proposal
     client: '',
     phone: '',
     value: 0,
-    category: '',
-    type: '',
+    category: undefined,
+    type: undefined,
     description: '',
     date: new Date(),
     ...proposal
@@ -35,8 +35,8 @@ export const ProposalDialog = ({ isOpen, onClose, onSubmit, proposal }: Proposal
 
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const handleChange = (field: keyof Proposal, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field: keyof Proposal, value: Proposal[keyof Proposal]) => {
+    setFormData((prev: Partial<Proposal>) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -49,12 +49,13 @@ export const ProposalDialog = ({ isOpen, onClose, onSubmit, proposal }: Proposal
 
     try {
       setIsLoading(true);
-      const url = await proposalService.sendProposalToClient(proposal);
+      await proposalService.sendProposalToClient(proposal);
       toast.success('Proposta enviada com sucesso!');
       onClose();
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao enviar proposta');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao enviar proposta';
+      console.error('Erro ao enviar proposta:', err);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -158,7 +159,7 @@ export const ProposalDialog = ({ isOpen, onClose, onSubmit, proposal }: Proposal
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.date ? format(formData.date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : <span>Selecione uma data</span>}
+                    {formData.date ? format(formData.date, "dd 'de' MMMM 'de' yyyy") : <span>Selecione uma data</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
