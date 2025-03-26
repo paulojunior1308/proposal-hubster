@@ -14,18 +14,14 @@ export interface Proposal {
   phone: string;
   value: number;
   date: Date;
-  category: string;
-  type: string;
-  description?: string;
-  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'paid' | 'payment_pending' | 'payment_failed';
+  category: ProposalCategory;
+  type: ProposalType;
+  description: string;
+  status: ProposalStatus;
   userId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  paymentId?: string;
-  paymentDate?: Timestamp;
-  paymentStatus?: 'approved' | 'pending' | 'rejected' | 'in_process' | string;
-  paymentStatusDetail?: string;
-  lastPaymentUpdate?: Timestamp;
+  paymentId?: string | null;
   linkExpiresAt?: Timestamp;
   linkStatus?: 'pending' | 'paid' | 'expired';
 }

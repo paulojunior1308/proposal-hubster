@@ -6,7 +6,6 @@ import {
   Plus, 
   Search, 
   Filter, 
-  Loader2,
 } from 'lucide-react';
 import { 
   DropdownMenu,
@@ -30,8 +29,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import * as z from 'zod';
 import { ProposalsTable } from '@/components/proposals/ProposalsTable';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '@/config/firebase';
 
 const proposalSchema = z.object({
   client: z.string().min(1, 'Nome do cliente é obrigatório'),
@@ -61,39 +58,20 @@ const Proposals = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoadingProposals, setIsLoadingProposals] = useState(true);
 
   const loadProposals = useCallback(async () => {
     if (!user) return;
     
     try {
-      setLoading(true);
-      const q = query(
-        collection(db, 'proposals'),
-        orderBy('createdAt', 'desc')
-      );
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const proposalsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt,
-          updatedAt: doc.data().updatedAt,
-        })) as Proposal[];
-        
-        console.log('Propostas carregadas:', proposalsData);
-        setProposals(proposalsData);
-        setLoading(false);
-      }, (error) => {
-        console.error('Erro ao buscar propostas:', error);
-        setLoading(false);
-      });
-
-      return () => unsubscribe();
+      setIsLoadingProposals(true);
+      const data = await proposalService.getProposals(user.uid);
+      setProposals(data);
     } catch (error) {
       toast.error('Erro ao carregar propostas');
       console.error(error);
-      setLoading(false);
+    } finally {
+      setIsLoadingProposals(false);
     }
   }, [user]);
 
@@ -187,14 +165,6 @@ const Proposals = () => {
     setIsFormOpen(true);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
@@ -268,11 +238,17 @@ const Proposals = () => {
               </div>
 
               <TabsContent value="all" className="space-y-4">
-                <ProposalsTable
-                  proposals={filteredProposals}
-                  onEdit={handleEditClick}
-                  onDelete={handleDeleteClick}
-                />
+                {isLoadingProposals ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                  </div>
+                ) : (
+                  <ProposalsTable
+                    proposals={filteredProposals}
+                    onEdit={handleEditClick}
+                    onDelete={handleDeleteClick}
+                  />
+                )}
               </TabsContent>
               <TabsContent value="pending" className="space-y-4">
                 <ProposalsTable

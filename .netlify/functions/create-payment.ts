@@ -75,7 +75,7 @@ export const handler: Handler = async (event) => {
       },
       auto_return: 'approved',
       external_reference: proposalId,
-      notification_url: `${baseURL}/.netlify/functions/webhook-mercadopago`,
+      notification_url: `${baseURL}/api/webhooks/mercadopago`,
       statement_descriptor: 'JR TECH',
       payment_methods: {
         excluded_payment_methods: [],

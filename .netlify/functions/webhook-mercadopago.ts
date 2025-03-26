@@ -1,9 +1,9 @@
 import { Handler } from '@netlify/functions';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 
-// Inicializar Firebase
+// Configuração do Firebase
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY,
   authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -13,6 +13,7 @@ const firebaseConfig = {
   appId: process.env.VITE_FIREBASE_APP_ID
 };
 
+// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -23,19 +24,21 @@ export const handler: Handler = async (event) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
+  // Responder ao preflight request
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
   }
 
   try {
     console.log('Webhook recebido:', event.body);
-    const { action, data } = JSON.parse(event.body || '{}');
+    const { type, data } = JSON.parse(event.body || '{}');
 
-    // Log para debug
-    console.log('Ação recebida:', action);
-    console.log('Dados recebidos:', data);
-
-    if (action === 'payment.created' || action === 'payment.updated') {
+    // Verificar se é uma notificação de pagamento
+    if (type === 'payment') {
       const mercadopago = new MercadoPagoConfig({ 
         accessToken: process.env.MP_ACCESS_TOKEN!
       });
@@ -43,35 +46,20 @@ export const handler: Handler = async (event) => {
       const payment = new Payment(mercadopago);
       const paymentData = await payment.get({ id: data.id });
 
-      // Log para debug
       console.log('Dados do pagamento:', paymentData);
 
-      let status;
-      switch (paymentData.status) {
-        case 'approved':
-          status = 'paid';
-          break;
-        case 'pending':
-          status = 'payment_pending';
-          break;
-        case 'rejected':
-          status = 'payment_failed';
-          break;
-        default:
-          status = 'payment_processing';
+      if (paymentData.status === 'approved') {
+        // Atualizar status da proposta no Firestore
+        const proposalRef = doc(db, 'proposals', paymentData.external_reference);
+        await updateDoc(proposalRef, {
+          status: 'paid',
+          paymentId: paymentData.id,
+          paymentDate: new Date(),
+          paymentStatus: paymentData.status
+        });
+
+        console.log('Proposta atualizada com sucesso:', paymentData.external_reference);
       }
-
-      const proposalRef = doc(db, 'proposals', paymentData.external_reference);
-      await updateDoc(proposalRef, {
-        status,
-        paymentId: paymentData.id,
-        paymentStatus: paymentData.status,
-        paymentStatusDetail: paymentData.status_detail,
-        paymentDate: Timestamp.now(),
-        updatedAt: Timestamp.now()
-      });
-
-      console.log('Proposta atualizada com sucesso');
     }
 
     return {

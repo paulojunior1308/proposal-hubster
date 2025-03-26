@@ -1,5 +1,4 @@
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
 
 // ... outros imports ...
 
@@ -20,72 +19,53 @@ const getStatusBadge = (status: string, paymentStatus?: string) => {
   }
 };
 
-const getPaymentStatusBadge = (paymentStatus?: string) => {
-  if (!paymentStatus) return null;
-
-  switch (paymentStatus) {
-    case 'approved':
-      return <Badge variant="success">Pagamento Confirmado</Badge>;
-    case 'pending':
-      return <Badge variant="warning">Pagamento Pendente</Badge>;
-    case 'rejected':
-      return <Badge variant="destructive">Pagamento Rejeitado</Badge>;
-    default:
-      return <Badge variant="secondary">{paymentStatus}</Badge>;
-  }
-};
-
 export function ProposalsTable({ proposals }: ProposalsTableProps) {
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Cliente</TableHead>
-            <TableHead>Categoria</TableHead>
-            <TableHead>Tipo</TableHead>
-            <TableHead>Data</TableHead>
-            <TableHead>Valor</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Pagamento</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {proposals.map((proposal) => (
-            <TableRow key={proposal.id}>
-              <TableCell>{proposal.client}</TableCell>
-              <TableCell>{proposal.category}</TableCell>
-              <TableCell>{proposal.type}</TableCell>
-              <TableCell>
-                {format(proposal.createdAt.toDate(), "dd/MM/yyyy")}
-              </TableCell>
-              <TableCell>
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL'
-                }).format(proposal.value)}
-              </TableCell>
-              <TableCell>
-                <Badge variant={
-                  proposal.status === 'paid' ? 'success' :
-                  proposal.status === 'accepted' ? 'default' :
-                  proposal.status === 'rejected' ? 'destructive' :
-                  'secondary'
-                }>
-                  {proposal.status}
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Cliente</TableHead>
+          <TableHead>Categoria</TableHead>
+          <TableHead>Tipo</TableHead>
+          <TableHead>Data</TableHead>
+          <TableHead>Valor</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Pagamento</TableHead>
+          <TableHead>Ações</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {proposals.map((proposal) => (
+          <TableRow key={proposal.id}>
+            <TableCell>{proposal.client}</TableCell>
+            <TableCell>{proposal.category}</TableCell>
+            <TableCell>{proposal.type}</TableCell>
+            <TableCell>{format(proposal.createdAt.toDate(), "dd 'de' MMMM 'de' yyyy")}</TableCell>
+            <TableCell>R$ {proposal.value.toFixed(2)}</TableCell>
+            <TableCell>{getStatusBadge(proposal.status)}</TableCell>
+            <TableCell>
+              {proposal.paymentStatus && (
+                <Badge 
+                  variant={
+                    proposal.paymentStatus === 'approved' ? 'success' : 
+                    proposal.paymentStatus === 'pending' ? 'warning' : 
+                    proposal.paymentStatus === 'rejected' ? 'destructive' : 
+                    'secondary'
+                  }
+                >
+                  {proposal.paymentStatus === 'approved' ? 'Confirmado' :
+                   proposal.paymentStatus === 'pending' ? 'Pendente' :
+                   proposal.paymentStatus === 'rejected' ? 'Rejeitado' :
+                   proposal.paymentStatus}
                 </Badge>
-              </TableCell>
-              <TableCell>
-                {getPaymentStatusBadge(proposal.paymentStatus)}
-              </TableCell>
-              <TableCell className="text-right">
-                {/* ... ações existentes ... */}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+              )}
+            </TableCell>
+            <TableCell>
+              {/* ... ações existentes ... */}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 } 
