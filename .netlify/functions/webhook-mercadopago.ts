@@ -49,34 +49,21 @@ export const handler: Handler = async (event) => {
 
       const proposalRef = doc(db, 'proposals', paymentData.external_reference);
 
-      let status;
-      switch (paymentData.status) {
-        case 'approved':
-          status = 'paid';
-          break;
-        case 'pending':
-          status = 'payment_pending';
-          break;
-        case 'rejected':
-          status = 'payment_failed';
-          break;
-        default:
-          status = 'payment_processing';
-      }
-
+      // Atualizar a proposta com os dados do pagamento
       await updateDoc(proposalRef, {
-        status: status,
         paymentId: paymentData.id,
-        paymentDate: new Date(),
         paymentStatus: paymentData.status,
         paymentStatusDetail: paymentData.status_detail,
-        lastPaymentUpdate: new Date()
+        paymentDate: new Date(),
+        status: paymentData.status === 'approved' ? 'paid' : 
+               paymentData.status === 'pending' ? 'payment_pending' : 
+               paymentData.status === 'rejected' ? 'payment_failed' : 
+               'payment_processing'
       });
 
       console.log('Proposta atualizada:', {
         id: paymentData.external_reference,
-        status,
-        paymentStatus: paymentData.status
+        status: paymentData.status
       });
     }
 

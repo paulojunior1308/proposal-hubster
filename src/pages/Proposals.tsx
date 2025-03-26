@@ -29,6 +29,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import * as z from 'zod';
 import { ProposalsTable } from '@/components/proposals/ProposalsTable';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 
 const proposalSchema = z.object({
   client: z.string().min(1, 'Nome do cliente é obrigatório'),
@@ -65,12 +67,25 @@ const Proposals = () => {
     
     try {
       setIsLoadingProposals(true);
-      const data = await proposalService.getProposals(user.uid);
-      setProposals(data);
+      const q = query(
+        collection(db, 'proposals'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const proposalsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Proposal[];
+        
+        setProposals(proposalsData);
+        setIsLoadingProposals(false);
+      });
+
+      return () => unsubscribe();
     } catch (error) {
       toast.error('Erro ao carregar propostas');
       console.error(error);
-    } finally {
       setIsLoadingProposals(false);
     }
   }, [user]);
@@ -165,6 +180,10 @@ const Proposals = () => {
     setIsFormOpen(true);
   };
 
+  if (isLoadingProposals) {
+    return <div>Carregando...</div>;
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
@@ -238,17 +257,11 @@ const Proposals = () => {
               </div>
 
               <TabsContent value="all" className="space-y-4">
-                {isLoadingProposals ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                  </div>
-                ) : (
-                  <ProposalsTable
-                    proposals={filteredProposals}
-                    onEdit={handleEditClick}
-                    onDelete={handleDeleteClick}
-                  />
-                )}
+                <ProposalsTable
+                  proposals={filteredProposals}
+                  onEdit={handleEditClick}
+                  onDelete={handleDeleteClick}
+                />
               </TabsContent>
               <TabsContent value="pending" className="space-y-4">
                 <ProposalsTable
