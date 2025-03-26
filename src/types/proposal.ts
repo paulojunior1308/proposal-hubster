@@ -17,13 +17,15 @@ export interface Proposal {
   category: ProposalCategory;
   type: ProposalType;
   description: string;
-  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'paid' | 'payment_failed';
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'paid' | 'payment_pending' | 'payment_failed' | 'payment_processing';
   userId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
   paymentId?: string;
-  paymentDate?: Date;
-  paymentStatus?: string;
+  paymentDate?: Timestamp;
+  paymentStatus?: 'approved' | 'pending' | 'rejected' | 'refunded' | string;
+  paymentStatusDetail?: string;
+  lastPaymentUpdate?: Timestamp;
   linkExpiresAt?: Timestamp;
   linkStatus?: 'pending' | 'paid' | 'expired';
 }

@@ -35,10 +35,9 @@ export const handler: Handler = async (event) => {
 
   try {
     console.log('Webhook recebido:', event.body);
-    const { type, data } = JSON.parse(event.body || '{}');
+    const { action, data } = JSON.parse(event.body || '{}');
 
-    // Verificar se é uma notificação de pagamento
-    if (type === 'payment') {
+    if (action === 'payment.created' || action === 'payment.updated') {
       const mercadopago = new MercadoPagoConfig({ 
         accessToken: process.env.MP_ACCESS_TOKEN!
       });
@@ -48,18 +47,37 @@ export const handler: Handler = async (event) => {
 
       console.log('Dados do pagamento:', paymentData);
 
-      if (paymentData.status === 'approved') {
-        // Atualizar status da proposta no Firestore
-        const proposalRef = doc(db, 'proposals', paymentData.external_reference);
-        await updateDoc(proposalRef, {
-          status: 'paid',
-          paymentId: paymentData.id,
-          paymentDate: new Date(),
-          paymentStatus: paymentData.status
-        });
+      const proposalRef = doc(db, 'proposals', paymentData.external_reference);
 
-        console.log('Proposta atualizada com sucesso:', paymentData.external_reference);
+      let status;
+      switch (paymentData.status) {
+        case 'approved':
+          status = 'paid';
+          break;
+        case 'pending':
+          status = 'payment_pending';
+          break;
+        case 'rejected':
+          status = 'payment_failed';
+          break;
+        default:
+          status = 'payment_processing';
       }
+
+      await updateDoc(proposalRef, {
+        status: status,
+        paymentId: paymentData.id,
+        paymentDate: new Date(),
+        paymentStatus: paymentData.status,
+        paymentStatusDetail: paymentData.status_detail,
+        lastPaymentUpdate: new Date()
+      });
+
+      console.log('Proposta atualizada:', {
+        id: paymentData.external_reference,
+        status,
+        paymentStatus: paymentData.status
+      });
     }
 
     return {
