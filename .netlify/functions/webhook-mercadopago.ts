@@ -3,7 +3,7 @@ import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 
-// Configuração do Firebase
+// Inicializar Firebase
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY,
   authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -13,7 +13,6 @@ const firebaseConfig = {
   appId: process.env.VITE_FIREBASE_APP_ID
 };
 
-// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -24,18 +23,17 @@ export const handler: Handler = async (event) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  // Responder ao preflight request
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: ''
-    };
+    return { statusCode: 200, headers, body: '' };
   }
 
   try {
     console.log('Webhook recebido:', event.body);
     const { action, data } = JSON.parse(event.body || '{}');
+
+    // Log para debug
+    console.log('Ação recebida:', action);
+    console.log('Dados recebidos:', data);
 
     if (action === 'payment.created' || action === 'payment.updated') {
       const mercadopago = new MercadoPagoConfig({ 
@@ -45,26 +43,34 @@ export const handler: Handler = async (event) => {
       const payment = new Payment(mercadopago);
       const paymentData = await payment.get({ id: data.id });
 
+      // Log para debug
       console.log('Dados do pagamento:', paymentData);
 
       const proposalRef = doc(db, 'proposals', paymentData.external_reference);
 
-      // Atualizar a proposta com os dados do pagamento
-      await updateDoc(proposalRef, {
+      const updateData = {
         paymentId: paymentData.id,
         paymentStatus: paymentData.status,
         paymentStatusDetail: paymentData.status_detail,
         paymentDate: new Date(),
-        status: paymentData.status === 'approved' ? 'paid' : 
-               paymentData.status === 'pending' ? 'payment_pending' : 
-               paymentData.status === 'rejected' ? 'payment_failed' : 
-               'payment_processing'
-      });
+        lastPaymentUpdate: new Date()
+      };
 
-      console.log('Proposta atualizada:', {
-        id: paymentData.external_reference,
-        status: paymentData.status
-      });
+      // Atualizar o status da proposta baseado no status do pagamento
+      if (paymentData.status === 'approved') {
+        updateData.status = 'paid';
+      } else if (paymentData.status === 'pending') {
+        updateData.status = 'payment_pending';
+      } else if (paymentData.status === 'rejected') {
+        updateData.status = 'payment_failed';
+      }
+
+      // Log para debug
+      console.log('Atualizando proposta com:', updateData);
+
+      await updateDoc(proposalRef, updateData);
+
+      console.log('Proposta atualizada com sucesso');
     }
 
     return {

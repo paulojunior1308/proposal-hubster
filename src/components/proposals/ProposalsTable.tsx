@@ -20,15 +20,15 @@ interface ProposalsTableProps {
   onDelete: (proposal: Proposal) => void;
 }
 
-type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
 
-interface StatusConfigItem {
-  label: string;
-  variant: BadgeVariant;
-  icon: LucideIcon;
+interface StatusConfig {
+  [key: string]: {
+    label: string;
+    variant: BadgeVariant;
+    icon: any;
+  }
 }
-
-type StatusConfig = Record<ProposalStatus, StatusConfigItem>;
 
 export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTableProps) => {
   const handleSendProposal = async (proposal: Proposal) => {
@@ -41,17 +41,18 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
     }
   };
 
-  const getStatusBadge = (status: Proposal['status']) => {
+  const getStatusBadge = (status: string, paymentStatus?: string) => {
     const statusConfig: StatusConfig = {
-      pending: { label: 'Pendente', variant: 'default', icon: Clock },
-      waiting_client: { label: 'Aguardando Cliente', variant: 'outline', icon: Send },
+      draft: { label: 'Rascunho', variant: 'default', icon: Clock },
+      sent: { label: 'Enviada', variant: 'outline', icon: Send },
       accepted: { label: 'Aceita', variant: 'secondary', icon: CheckCircle },
-      declined: { label: 'Declinada', variant: 'destructive', icon: XCircle },
-      paid: { label: 'Paga', variant: 'secondary', icon: DollarSign },
+      rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
+      paid: { label: 'Paga', variant: 'success', icon: DollarSign },
+      payment_pending: { label: 'Aguardando Pagamento', variant: 'warning', icon: Clock },
       payment_failed: { label: 'Pagamento Falhou', variant: 'destructive', icon: XCircle }
     };
 
-    const config = statusConfig[status];
+    const config = statusConfig[status] || statusConfig.draft;
     const Icon = config.icon;
 
     return (
@@ -60,6 +61,21 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
         {config.label}
       </Badge>
     );
+  };
+
+  const getPaymentStatusBadge = (paymentStatus?: string) => {
+    if (!paymentStatus) return null;
+
+    const statusConfig = {
+      approved: { label: 'Pagamento Confirmado', variant: 'success' as const },
+      pending: { label: 'Aguardando Pagamento', variant: 'warning' as const },
+      rejected: { label: 'Pagamento Rejeitado', variant: 'destructive' as const },
+      in_process: { label: 'Processando', variant: 'secondary' as const }
+    };
+
+    const config = statusConfig[paymentStatus] || { label: paymentStatus, variant: 'default' as const };
+
+    return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
   return (
@@ -73,6 +89,7 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
             <TableHead>Data</TableHead>
             <TableHead>Valor</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Pagamento</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -83,7 +100,7 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
               <TableCell>{proposal.category}</TableCell>
               <TableCell>{proposal.type}</TableCell>
               <TableCell>
-                {format(proposal.date, "dd 'de' MMMM 'de' yyyy")}
+                {format(proposal.createdAt.toDate(), "dd/MM/yyyy")}
               </TableCell>
               <TableCell>
                 {new Intl.NumberFormat('pt-BR', {
@@ -93,6 +110,9 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
               </TableCell>
               <TableCell>
                 {getStatusBadge(proposal.status)}
+              </TableCell>
+              <TableCell>
+                {getPaymentStatusBadge(proposal.paymentStatus)}
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
