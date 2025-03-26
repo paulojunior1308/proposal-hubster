@@ -16,8 +16,8 @@ import { toast } from 'sonner';
 
 interface ProposalsTableProps {
   proposals: Proposal[];
-  onEdit: (proposal: Proposal) => void;
-  onDelete: (proposal: Proposal) => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
 type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
@@ -41,8 +41,8 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
     }
   };
 
-  const getStatusBadge = (status: string, paymentStatus?: string) => {
-    const statusConfig: StatusConfig = {
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
       draft: { label: 'Rascunho', variant: 'default', icon: Clock },
       sent: { label: 'Enviada', variant: 'outline', icon: Send },
       accepted: { label: 'Aceita', variant: 'secondary', icon: CheckCircle },
@@ -50,15 +50,13 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
       paid: { label: 'Paga', variant: 'success', icon: DollarSign },
       payment_pending: { label: 'Aguardando Pagamento', variant: 'warning', icon: Clock },
       payment_failed: { label: 'Pagamento Falhou', variant: 'destructive', icon: XCircle }
-    };
+    }[status] || { label: status, variant: 'default', icon: Clock };
 
-    const config = statusConfig[status] || statusConfig.draft;
-    const Icon = config.icon;
-
+    const Icon = statusConfig.icon;
     return (
-      <Badge variant={config.variant}>
-        <Icon className="h-3 w-3 mr-1" />
-        {config.label}
+      <Badge variant={statusConfig.variant as any}>
+        <Icon className="w-3 h-3 mr-1" />
+        {statusConfig.label}
       </Badge>
     );
   };
@@ -67,15 +65,13 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
     if (!paymentStatus) return null;
 
     const statusConfig = {
-      approved: { label: 'Pagamento Confirmado', variant: 'success' as const },
-      pending: { label: 'Aguardando Pagamento', variant: 'warning' as const },
-      rejected: { label: 'Pagamento Rejeitado', variant: 'destructive' as const },
-      in_process: { label: 'Processando', variant: 'secondary' as const }
-    };
+      approved: { label: 'Pagamento Confirmado', variant: 'success' },
+      pending: { label: 'Aguardando Pagamento', variant: 'warning' },
+      rejected: { label: 'Pagamento Rejeitado', variant: 'destructive' },
+      in_process: { label: 'Processando', variant: 'secondary' }
+    }[paymentStatus] || { label: paymentStatus, variant: 'default' };
 
-    const config = statusConfig[paymentStatus] || { label: paymentStatus, variant: 'default' as const };
-
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={statusConfig.variant as any}>{statusConfig.label}</Badge>;
   };
 
   return (
@@ -108,12 +104,8 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
                   currency: 'BRL'
                 }).format(proposal.value)}
               </TableCell>
-              <TableCell>
-                {getStatusBadge(proposal.status)}
-              </TableCell>
-              <TableCell>
-                {getPaymentStatusBadge(proposal.paymentStatus)}
-              </TableCell>
+              <TableCell>{getStatusBadge(proposal.status)}</TableCell>
+              <TableCell>{getPaymentStatusBadge(proposal.paymentStatus)}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
                   {proposal.status === 'pending' && (
@@ -129,7 +121,7 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => onEdit(proposal)}
+                    onClick={() => onEdit(proposal.id)}
                     title="Editar proposta"
                   >
                     <Edit className="h-4 w-4" />
@@ -137,7 +129,7 @@ export const ProposalsTable = ({ proposals, onEdit, onDelete }: ProposalsTablePr
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => onDelete(proposal)}
+                    onClick={() => onDelete(proposal.id)}
                     title="Excluir proposta"
                   >
                     <Trash2 className="h-4 w-4" />

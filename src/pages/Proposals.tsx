@@ -6,6 +6,7 @@ import {
   Plus, 
   Search, 
   Filter, 
+  Loader2,
 } from 'lucide-react';
 import { 
   DropdownMenu,
@@ -60,13 +61,13 @@ const Proposals = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
-  const [isLoadingProposals, setIsLoadingProposals] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const loadProposals = useCallback(async () => {
     if (!user) return;
     
     try {
-      setIsLoadingProposals(true);
+      setLoading(true);
       const q = query(
         collection(db, 'proposals'),
         orderBy('createdAt', 'desc')
@@ -75,18 +76,24 @@ const Proposals = () => {
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const proposalsData = snapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
+          createdAt: doc.data().createdAt,
+          updatedAt: doc.data().updatedAt,
         })) as Proposal[];
         
+        console.log('Propostas carregadas:', proposalsData);
         setProposals(proposalsData);
-        setIsLoadingProposals(false);
+        setLoading(false);
+      }, (error) => {
+        console.error('Erro ao buscar propostas:', error);
+        setLoading(false);
       });
 
       return () => unsubscribe();
     } catch (error) {
       toast.error('Erro ao carregar propostas');
       console.error(error);
-      setIsLoadingProposals(false);
+      setLoading(false);
     }
   }, [user]);
 
@@ -180,8 +187,12 @@ const Proposals = () => {
     setIsFormOpen(true);
   };
 
-  if (isLoadingProposals) {
-    return <div>Carregando...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   return (
