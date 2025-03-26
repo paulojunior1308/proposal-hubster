@@ -2,7 +2,6 @@ import { Proposal } from '@/types/proposal';
 
 export class CheckoutService {
   private readonly MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY;
-  private readonly API_URL = import.meta.env.VITE_API_URL;
 
   constructor() {
     if (!this.MP_PUBLIC_KEY) {
@@ -18,7 +17,7 @@ export class CheckoutService {
         value: proposal.value
       });
       
-      const response = await fetch('/api/create-payment', {
+      const response = await fetch('/.netlify/functions/create-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

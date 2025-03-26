@@ -140,7 +140,7 @@ export const proposalLinkService = {
   // Criar preferência de pagamento no Mercado Pago
   async createPaymentPreference(proposal: Proposal, linkId: string): Promise<string> {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/create-payment`, {
+      const response = await fetch('/.netlify/functions/create-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
