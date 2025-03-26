@@ -64,10 +64,20 @@ export const proposalService = {
 
       const docRef = await addDoc(collection(db, 'proposals'), proposalData);
       
+      // Gerar o link com a URL base correta
+      const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      const proposalLink = `${baseUrl}/proposta/${docRef.id}`;
+
+      // Atualizar o documento com o link gerado
+      await updateDoc(doc(db, 'proposals', docRef.id), {
+        proposalLink
+      });
+
       return {
         ...proposalData,
         id: docRef.id,
-        date: proposalData.date.toDate()
+        date: proposalData.date.toDate(),
+        proposalLink
       } as unknown as Proposal;
     } catch (error) {
       console.error('Erro ao criar proposta:', error);
