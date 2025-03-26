@@ -1,51 +1,50 @@
 import { Handler } from '@netlify/functions';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 
-const mercadopago = new MercadoPagoConfig({ 
-  accessToken: process.env.MP_ACCESS_TOKEN!
-});
-
 export const handler: Handler = async (event) => {
-  // Habilitar CORS
+  // Adicionar headers CORS em todas as respostas
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Content-Type': 'application/json'
+  };
+
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
+      headers,
       body: ''
     };
   }
 
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: {
-        'Access-Control-Allow-Origin': '*'
-      },
-      body: JSON.stringify({ message: 'Method not allowed' })
-    };
-  }
-
   try {
-    // Log das variáveis de ambiente
-    console.log('Verificando variáveis de ambiente:', {
-      hasAccessToken: !!process.env.MP_ACCESS_TOKEN,
-      hasURL: !!process.env.URL
+    // Verificar token do Mercado Pago
+    if (!process.env.MP_ACCESS_TOKEN) {
+      console.error('MP_ACCESS_TOKEN não configurado');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error: 'Configuração inválida',
+          details: 'Token do Mercado Pago não configurado'
+        })
+      };
+    }
+
+    const mercadopago = new MercadoPagoConfig({ 
+      accessToken: process.env.MP_ACCESS_TOKEN
     });
 
     const { proposalId, title, price, description } = JSON.parse(event.body || '{}');
 
     console.log('Dados recebidos:', { proposalId, title, price, description });
 
+    // Validar dados obrigatórios
     if (!proposalId || !title || !price) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*'
-        },
+        headers,
         body: JSON.stringify({
           error: 'Dados inválidos',
           details: 'proposalId, title e price são obrigatórios',
@@ -55,6 +54,8 @@ export const handler: Handler = async (event) => {
     }
 
     const preference = new Preference(mercadopago);
+    
+    const baseURL = process.env.URL || 'https://orc-jrtech.netlify.app';
     
     const preferenceData = {
       items: [
@@ -68,56 +69,43 @@ export const handler: Handler = async (event) => {
         }
       ],
       back_urls: {
-        success: `${process.env.URL}/proposta/${proposalId}/success`,
-        failure: `${process.env.URL}/proposta/${proposalId}/failure`,
-        pending: `${process.env.URL}/proposta/${proposalId}/pending`
+        success: `${baseURL}/proposta/${proposalId}/success`,
+        failure: `${baseURL}/proposta/${proposalId}/failure`,
+        pending: `${baseURL}/proposta/${proposalId}/pending`
       },
       auto_return: 'approved',
       external_reference: proposalId,
-      notification_url: `${process.env.URL}/api/webhooks/mercadopago`
+      notification_url: `${baseURL}/api/webhooks/mercadopago`,
+      statement_descriptor: 'JR TECH',
+      payment_methods: {
+        excluded_payment_methods: [],
+        excluded_payment_types: [],
+        installments: 12
+      }
     };
 
-    console.log('Dados da preferência:', preferenceData);
+    console.log('Criando preferência com dados:', preferenceData);
 
-    try {
-      const response = await preference.create({ body: preferenceData });
-      console.log('Resposta do Mercado Pago:', response);
-      
-      return {
-        statusCode: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          preferenceId: response.id,
-          initPoint: response.init_point
-        })
-      };
-    } catch (mpError) {
-      console.error('Erro do Mercado Pago:', mpError);
-      return {
-        statusCode: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          error: 'Erro ao criar preferência no Mercado Pago',
-          details: mpError instanceof Error ? mpError.message : 'Erro na API do Mercado Pago'
-        })
-      };
-    }
+    const response = await preference.create({ body: preferenceData });
+    console.log('Resposta do Mercado Pago:', response);
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        preferenceId: response.id,
+        initPoint: response.init_point
+      })
+    };
+
   } catch (error) {
-    console.error('Erro ao processar requisição:', error);
+    console.error('Erro detalhado:', error);
+    
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        error: 'Erro ao criar preferência',
+      headers,
+      body: JSON.stringify({
+        error: 'Erro ao criar preferência no Mercado Pago',
         details: error instanceof Error ? error.message : 'Erro desconhecido',
         stack: error instanceof Error ? error.stack : undefined
       })

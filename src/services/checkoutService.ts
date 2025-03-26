@@ -11,7 +11,7 @@ export class CheckoutService {
 
   async createPreference(proposal: Proposal) {
     try {
-      console.log('Criando preferência de pagamento para proposta:', {
+      console.log('Iniciando criação de preferência para proposta:', {
         id: proposal.id,
         client: proposal.client,
         value: proposal.value
@@ -33,11 +33,16 @@ export class CheckoutService {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Resposta de erro:', data);
+        console.error('Erro na resposta:', data);
         throw new Error(data.details || 'Erro ao criar preferência de pagamento');
       }
 
-      console.log('Preferência criada:', data);
+      if (!data.preferenceId) {
+        console.error('Resposta sem preferenceId:', data);
+        throw new Error('Resposta inválida do servidor');
+      }
+
+      console.log('Preferência criada com sucesso:', data);
       return data;
     } catch (error) {
       console.error('Erro ao criar preferência:', error);
@@ -49,6 +54,10 @@ export class CheckoutService {
     try {
       const { preferenceId } = await this.createPreference(proposal);
       
+      if (!this.MP_PUBLIC_KEY) {
+        throw new Error('Chave pública do Mercado Pago não configurada');
+      }
+
       // Inicializar o Mercado Pago
       const mp = new window.MercadoPago(this.MP_PUBLIC_KEY, {
         locale: 'pt-BR'
