@@ -1,7 +1,7 @@
 import { Handler } from '@netlify/functions';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, Timestamp } from 'firebase/firestore';
 
 // Inicializar Firebase
 const firebaseConfig = {
@@ -46,29 +46,30 @@ export const handler: Handler = async (event) => {
       // Log para debug
       console.log('Dados do pagamento:', paymentData);
 
-      const proposalRef = doc(db, 'proposals', paymentData.external_reference);
+      let status;
+      switch (paymentData.status) {
+        case 'approved':
+          status = 'paid';
+          break;
+        case 'pending':
+          status = 'payment_pending';
+          break;
+        case 'rejected':
+          status = 'payment_failed';
+          break;
+        default:
+          status = 'payment_processing';
+      }
 
-      const updateData = {
+      const proposalRef = doc(db, 'proposals', paymentData.external_reference);
+      await updateDoc(proposalRef, {
+        status,
         paymentId: paymentData.id,
         paymentStatus: paymentData.status,
         paymentStatusDetail: paymentData.status_detail,
-        paymentDate: new Date(),
-        lastPaymentUpdate: new Date()
-      };
-
-      // Atualizar o status da proposta baseado no status do pagamento
-      if (paymentData.status === 'approved') {
-        updateData.status = 'paid';
-      } else if (paymentData.status === 'pending') {
-        updateData.status = 'payment_pending';
-      } else if (paymentData.status === 'rejected') {
-        updateData.status = 'payment_failed';
-      }
-
-      // Log para debug
-      console.log('Atualizando proposta com:', updateData);
-
-      await updateDoc(proposalRef, updateData);
+        paymentDate: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
 
       console.log('Proposta atualizada com sucesso');
     }

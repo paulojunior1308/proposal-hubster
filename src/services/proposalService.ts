@@ -9,7 +9,8 @@ import {
   where,
   orderBy,
   Timestamp,
-  getDoc
+  getDoc,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import jsPDF from 'jspdf';
@@ -39,46 +40,21 @@ export const proposalCategories: Record<ProposalCategory, ProposalType[]> = {
 
 export const proposalService = {
   // Criar proposta
-  async createProposal(proposal: Partial<Proposal>): Promise<Proposal> {
+  async createProposal(proposal: Omit<Proposal, 'id' | 'createdAt' | 'updatedAt'>) {
     try {
-      const expirationDate = new Date();
-      expirationDate.setDate(expirationDate.getDate() + 7);
-
-      const proposalData = {
+      const proposalsRef = collection(db, 'proposals');
+      const newProposalRef = doc(proposalsRef);
+      
+      const newProposal = {
         ...proposal,
-        phone: proposal.phone || '',
-        status: 'pending' as ProposalStatus,
+        id: newProposalRef.id,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
-        client: proposal.client!,
-        value: proposal.value!,
-        category: proposal.category!,
-        type: proposal.type!,
-        userId: proposal.userId!,
-        id: uuidv4(),
-        date: Timestamp.fromDate(proposal.date instanceof Date ? proposal.date : new Date()),
-        linkExpiresAt: Timestamp.fromDate(expirationDate),
-        paymentId: null,
-        linkStatus: 'pending'
+        status: 'draft'
       };
 
-      const docRef = await addDoc(collection(db, 'proposals'), proposalData);
-      
-      // Gerar o link com a URL base correta
-      const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      const proposalLink = `${baseUrl}/proposta/${docRef.id}`;
-
-      // Atualizar o documento com o link gerado
-      await updateDoc(doc(db, 'proposals', docRef.id), {
-        proposalLink
-      });
-
-      return {
-        ...proposalData,
-        id: docRef.id,
-        date: proposalData.date.toDate(),
-        proposalLink
-      } as unknown as Proposal;
+      await setDoc(newProposalRef, newProposal);
+      return newProposal;
     } catch (error) {
       console.error('Erro ao criar proposta:', error);
       throw error;
@@ -133,14 +109,15 @@ export const proposalService = {
   },
 
   // Atualizar uma proposta
-  async updateProposal(proposalId: string, updates: Partial<Proposal>): Promise<void> {
+  async updateProposal(proposalId: string, data: Partial<Proposal>) {
     try {
+      const proposalRef = doc(db, 'proposals', proposalId);
       const updateData = {
-        ...updates,
+        ...data,
         updatedAt: Timestamp.now()
       };
-
-      await updateDoc(doc(db, 'proposals', proposalId), updateData);
+      
+      await updateDoc(proposalRef, updateData);
     } catch (error) {
       console.error('Erro ao atualizar proposta:', error);
       throw error;
@@ -159,33 +136,19 @@ export const proposalService = {
   },
 
   // Enviar proposta para o cliente
-  async sendProposalToClient(proposal: Proposal): Promise<void> {
+  async sendProposalToClient(proposal: Proposal) {
     try {
-      // Formatar o número de telefone
-      const phone = proposal.phone.replace(/\D/g, '');
-      const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
-      
-      // Criar URL da proposta
-      const proposalUrl = `${window.location.origin}/proposta/${proposal.id}`;
-      
-      // Criar mensagem
-      const message = `Olá ${proposal.client}! 👋\n\n`
-        + `Sua proposta está pronta para análise! 📄\n\n`
-        + `Acesse o link abaixo para visualizar os detalhes e confirmar:\n`
-        + `${proposalUrl}\n\n`
-        + `O link é válido por 7 dias.\n\n`
-        + `Aguardamos seu retorno! 🤝`;
+      if (!proposal.id) {
+        throw new Error('ID da proposta não encontrado');
+      }
 
-      // Atualizar status da proposta
-      await this.updateProposal(proposal.id, {
-        status: 'waiting_client',
-        linkExpiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 7 dias
-      });
+      const proposalRef = doc(db, 'proposals', proposal.id);
+      const updateData = {
+        status: 'sent',
+        updatedAt: Timestamp.now()
+      };
 
-      // Abrir WhatsApp
-      const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, '_blank');
-
+      await updateDoc(proposalRef, updateData);
     } catch (error) {
       console.error('Erro ao enviar proposta:', error);
       throw error;
@@ -337,6 +300,31 @@ export const proposalService = {
       return { preferenceId: data.preferenceId };
     } catch (error) {
       console.error('Erro ao criar preferência de pagamento:', error);
+      throw error;
+    }
+  },
+
+  // Método para atualizar status de pagamento
+  async updatePaymentStatus(proposalId: string, paymentData: {
+    status: string;
+    paymentId?: string;
+    paymentStatus?: string;
+    paymentStatusDetail?: string;
+  }) {
+    try {
+      const proposalRef = doc(db, 'proposals', proposalId);
+      const updateData = {
+        status: paymentData.status,
+        paymentId: paymentData.paymentId,
+        paymentStatus: paymentData.paymentStatus,
+        paymentStatusDetail: paymentData.paymentStatusDetail,
+        paymentDate: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      };
+
+      await updateDoc(proposalRef, updateData);
+    } catch (error) {
+      console.error('Erro ao atualizar status de pagamento:', error);
       throw error;
     }
   }
