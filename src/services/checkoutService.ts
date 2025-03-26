@@ -18,7 +18,7 @@ export class CheckoutService {
         value: proposal.value
       });
       
-      const response = await fetch(`${this.API_URL}/create-payment`, {
+      const response = await fetch('/api/create-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
