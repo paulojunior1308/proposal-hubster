@@ -140,9 +140,7 @@ export const proposalLinkService = {
   // Criar preferência de pagamento no Mercado Pago
   async createPaymentPreference(proposal: Proposal, linkId: string): Promise<string> {
     try {
-      // Aqui você deve implementar a chamada para sua API backend
-      // que irá criar a preferência de pagamento no Mercado Pago
-      const response = await fetch('/api/create-payment', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/create-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

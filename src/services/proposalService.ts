@@ -316,7 +316,7 @@ export const proposalService = {
   // Adicionar método createPaymentPreference
   async createPaymentPreference(proposal: Proposal): Promise<{ preferenceId: string }> {
     try {
-      const response = await fetch('/api/create-payment', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/create-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
