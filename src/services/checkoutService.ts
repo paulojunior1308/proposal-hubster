@@ -30,12 +30,13 @@ export class CheckoutService {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erro ao criar preferência: ${errorText}`);
+        console.error('Resposta de erro:', data);
+        throw new Error(data.details || 'Erro ao criar preferência de pagamento');
       }
 
-      const data = await response.json();
       console.log('Preferência criada:', data);
       return data;
     } catch (error) {

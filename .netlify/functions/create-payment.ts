@@ -22,14 +22,37 @@ export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers: {
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify({ message: 'Method not allowed' })
     };
   }
 
   try {
+    // Log das variáveis de ambiente
+    console.log('Verificando variáveis de ambiente:', {
+      hasAccessToken: !!process.env.MP_ACCESS_TOKEN,
+      hasURL: !!process.env.URL
+    });
+
     const { proposalId, title, price, description } = JSON.parse(event.body || '{}');
 
-    console.log('Recebida requisição:', { proposalId, title, price, description });
+    console.log('Dados recebidos:', { proposalId, title, price, description });
+
+    if (!proposalId || !title || !price) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          error: 'Dados inválidos',
+          details: 'proposalId, title e price são obrigatórios',
+          received: { proposalId, title, price }
+        })
+      };
+    }
 
     const preference = new Preference(mercadopago);
     
@@ -54,30 +77,49 @@ export const handler: Handler = async (event) => {
       notification_url: `${process.env.URL}/api/webhooks/mercadopago`
     };
 
-    console.log('Criando preferência com dados:', preferenceData);
-    const response = await preference.create({ body: preferenceData });
-    console.log('Resposta do Mercado Pago:', response);
-    
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*'
-      },
-      body: JSON.stringify({
-        preferenceId: response.id,
-        initPoint: response.init_point
-      })
-    };
+    console.log('Dados da preferência:', preferenceData);
+
+    try {
+      const response = await preference.create({ body: preferenceData });
+      console.log('Resposta do Mercado Pago:', response);
+      
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          preferenceId: response.id,
+          initPoint: response.init_point
+        })
+      };
+    } catch (mpError) {
+      console.error('Erro do Mercado Pago:', mpError);
+      return {
+        statusCode: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          error: 'Erro ao criar preferência no Mercado Pago',
+          details: mpError instanceof Error ? mpError.message : 'Erro na API do Mercado Pago'
+        })
+      };
+    }
   } catch (error) {
-    console.error('Erro ao criar preferência:', error);
+    console.error('Erro ao processar requisição:', error);
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
         error: 'Erro ao criar preferência',
-        details: error instanceof Error ? error.message : 'Erro desconhecido'
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
+        stack: error instanceof Error ? error.stack : undefined
       })
     };
   }
